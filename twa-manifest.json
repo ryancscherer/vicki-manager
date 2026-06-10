@@ -1,0 +1,34 @@
+{
+  "packageId": "com.ryanscherer.vickimanager",
+  "host": "ryancscherer.github.io",
+  "name": "Vicki the Soccer Manager",
+  "launcherName": "Vicki",
+  "display": "standalone",
+  "themeColor": "#1a6b2f",
+  "navigationColor": "#0f3d1a",
+  "backgroundColor": "#0f3d1a",
+  "enableNotifications": false,
+  "startUrl": "/vicki-manager/app.html",
+  "iconUrl": "https://ryancscherer.github.io/vicki-manager/icons/icon-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "vicki-manager"
+  },
+  "appVersion": "1",
+  "appVersionName": "1.02",
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://ryancscherer.github.io/vicki-manager/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {
+    "locationDelegation": { "enabled": false },
+    "playBilling": { "enabled": false }
+  },
+  "alphaDependencies": { "enabled": false },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fingerprints": [],
+  "serviceAccountJsonFile": "./service-account.json"
+}
