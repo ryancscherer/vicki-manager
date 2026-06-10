@@ -1,27 +1,35 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <radialGradient id="bg" cx="50%" cy="40%" r="60%">
-      <stop offset="0%" stop-color="#2a8a42"/>
-      <stop offset="100%" stop-color="#0f3d1a"/>
+    <radialGradient id="vignette" cx="50%" cy="50%" r="70%">
+      <stop offset="60%" stop-color="transparent"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.3"/>
     </radialGradient>
-    <radialGradient id="ball" cx="38%" cy="35%" r="65%">
-      <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="60%" stop-color="#d0d0d0"/>
-      <stop offset="100%" stop-color="#999999"/>
-    </radialGradient>
+    <clipPath id="rounded">
+      <rect width="512" height="512" rx="96"/>
+    </clipPath>
   </defs>
-  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
-  <rect x="0" y="170" width="512" height="60" fill="rgba(26,107,47,0.35)"/>
-  <rect x="0" y="290" width="512" height="60" fill="rgba(26,107,47,0.35)"/>
-  <circle cx="256" cy="230" r="105" fill="url(#ball)" stroke="#cccccc" stroke-width="2"/>
-  <g fill="#222" opacity="0.75">
-    <polygon points="256,185 291,211 277,252 235,252 221,211"/>
-    <polygon points="256,150 276,168 270,185 242,185 236,168"/>
-    <polygon points="298,162 315,183 302,200 285,196 280,175"/>
-    <polygon points="305,253 313,276 293,285 276,270 279,252"/>
-    <polygon points="207,253 213,270 196,285 176,276 184,253"/>
-    <polygon points="214,162 232,175 227,196 210,200 197,183"/>
+  <rect width="512" height="512" rx="96" fill="#1a3a1a"/>
+  <g clip-path="url(#rounded)">
+    <rect x="40" y="64" width="432" height="384" rx="12" fill="#2a6e2a"/>
+    <rect x="40" y="64" width="54" height="384" fill="#2e7a2e" opacity="0.5"/>
+    <rect x="148" y="64" width="54" height="384" fill="#2e7a2e" opacity="0.5"/>
+    <rect x="256" y="64" width="54" height="384" fill="#2e7a2e" opacity="0.5"/>
+    <rect x="364" y="64" width="54" height="384" fill="#2e7a2e" opacity="0.5"/>
+    <rect x="48" y="72" width="416" height="368" rx="8" fill="none" stroke="#ffffff" stroke-width="6"/>
+    <line x1="256" y1="72" x2="256" y2="440" stroke="#ffffff" stroke-width="5"/>
+    <circle cx="256" cy="256" r="66" fill="none" stroke="#ffffff" stroke-width="5"/>
+    <circle cx="256" cy="256" r="6" fill="#ffffff"/>
+    <rect x="48" y="168" width="80" height="176" fill="none" stroke="#ffffff" stroke-width="4"/>
+    <rect x="48" y="206" width="36" height="100" fill="none" stroke="#ffffff" stroke-width="4"/>
+    <rect x="384" y="168" width="80" height="176" fill="none" stroke="#ffffff" stroke-width="4"/>
+    <rect x="428" y="206" width="36" height="100" fill="none" stroke="#ffffff" stroke-width="4"/>
+    <rect x="218" y="238" width="68" height="26" rx="10" fill="#f59e0b"/>
+    <rect x="286" y="244" width="30" height="14" rx="6" fill="#f59e0b"/>
+    <circle cx="244" cy="251" r="8" fill="#1d4d1d"/>
+    <circle cx="244" cy="251" r="3.5" fill="#f59e0b"/>
+    <circle cx="226" cy="234" r="7" fill="none" stroke="#f59e0b" stroke-width="3.5"/>
+    <line x1="226" y1="227" x2="226" y2="212" stroke="#f59e0b" stroke-width="3.5" stroke-linecap="round"/>
+    <text x="256" y="414" font-family="Arial Black, sans-serif" font-size="66" font-weight="900" fill="#ffffff" text-anchor="middle">V</text>
+    <rect width="512" height="512" rx="96" fill="url(#vignette)"/>
   </g>
-  <text x="256" y="390" font-family="Arial Black, sans-serif" font-weight="900" font-size="96" fill="#f0f4f0" text-anchor="middle" letter-spacing="2" opacity="0.95">V</text>
-  <rect x="4" y="4" width="504" height="504" rx="93" fill="none" stroke="rgba(232,245,233,0.25)" stroke-width="5"/>
 </svg>
