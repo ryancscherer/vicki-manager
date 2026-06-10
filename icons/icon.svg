@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#2a8a42"/>
+      <stop offset="100%" stop-color="#0f3d1a"/>
+    </radialGradient>
+    <radialGradient id="ball" cx="38%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="60%" stop-color="#d0d0d0"/>
+      <stop offset="100%" stop-color="#999999"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <rect x="0" y="170" width="512" height="60" fill="rgba(26,107,47,0.35)"/>
+  <rect x="0" y="290" width="512" height="60" fill="rgba(26,107,47,0.35)"/>
+  <circle cx="256" cy="230" r="105" fill="url(#ball)" stroke="#cccccc" stroke-width="2"/>
+  <g fill="#222" opacity="0.75">
+    <polygon points="256,185 291,211 277,252 235,252 221,211"/>
+    <polygon points="256,150 276,168 270,185 242,185 236,168"/>
+    <polygon points="298,162 315,183 302,200 285,196 280,175"/>
+    <polygon points="305,253 313,276 293,285 276,270 279,252"/>
+    <polygon points="207,253 213,270 196,285 176,276 184,253"/>
+    <polygon points="214,162 232,175 227,196 210,200 197,183"/>
+  </g>
+  <text x="256" y="390" font-family="Arial Black, sans-serif" font-weight="900" font-size="96" fill="#f0f4f0" text-anchor="middle" letter-spacing="2" opacity="0.95">V</text>
+  <rect x="4" y="4" width="504" height="504" rx="93" fill="none" stroke="rgba(232,245,233,0.25)" stroke-width="5"/>
+</svg>
