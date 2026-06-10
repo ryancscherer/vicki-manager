@@ -1,0 +1,3106 @@
+<!DOCTYPE html>
+<!--
+  ================================================================
+  Vicki the Manager — Mitchie Match Assistant
+  Author:  R Scherer
+  ================================================================
+
+  RELEASE NOTES
+  ----------------------------------------------------------------
+  v1.0   — 30-05-2026 — Initial release
+           • Match timer with configurable half duration (5–50 min)
+           • Squad setup: player names, team size, squad size
+           • Dual goalkeeper assignment (different GK each half)
+           • GK rotates to outfield in the half they are not in goal
+           • Rotation planner with configurable rotations per half
+           • Full bench rotation toggle (entire bench swaps at once)
+           • Auto-generated rotation plan with MM:SS timing
+           • Plan tab: editable rotation slots (who comes off/on)
+           • Live tab: countdown ring, next rotation preview,
+             interchange confirm button
+           • Time tracker tab showing field time per player
+           • GK History tab: auto-saved after each match, editable
+           • Vibration alerts: 10s chirp warning, strong rotation
+             buzz, half-time and full-time patterns (Android)
+           • New Game button: resets match, preserves squad & history
+           • All data saved as cookie for 12 months
+
+  v1.01  — 05-06-2026 — Bug fixes
+           • Fixed Plan tab bench edit — "Off at kick-off" section
+             now shows correct bench players (not all players)
+           • Fixed bench editor regenerating full plan across both
+             halves for even player time after a manual override
+           • Tabs (Plan, Live, Time, GK Log) disabled until squad
+             is saved — clear visual state, blocks accidental access
+           • Removed version number from app header (footer only)
+           • 10-a-side added to team size dropdown
+
+  v1.02  — 06-06-2026 — Features & fixes
+           • Goals tracking on Live tab: record scorer, time, notes
+             for both our goals and opponent goals
+           • Match score displayed live (Us vs Them)
+           • Full-time match summary report on Live tab
+           • Email report via mailto with date in subject line
+           • Audio alerts via Web Audio API (works on all devices):
+             soft chirp 10s before rotation, double beep on rotation,
+             repeating chime until interchange confirmed,
+             whistle blasts for half-time and full-time
+           • Audio toggle (independent of vibration toggle)
+           • Player rotation rules: never off together / always
+             rotate together — set in Squad tab before saving
+           • Rules editor: add, edit, delete rules inline
+           • Rule dropdowns exclude selected player from other field
+           • Duplicate rule pair blocked
+           • Repeating chime stops automatically on interchange confirm
+           • GK1 (1st half GK) prioritised to bench at start of 2nd
+             half to equalise outfield time across full match
+           • Half-time Live screen shows 2nd half starting lineup
+             and bench players before kicking off 2nd half
+           • Live tab: Kick Off button when match not yet started
+           • Live tab: pre-match screen hidden once match starts
+           • Opponent goal uses text field instead of dropdown
+           • Rotation rules: removed example text from labels
+           • New Game and Reset now stop chime before resetting
+           • Kick Off warns user if no players have been entered
+           • Reset switches back to Match tab and re-renders squad
+           • Version number removed from app header (footer only)
+  ================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vicki the Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a6b2f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Vicki">
+<style>
+:root{
+  --grass:#1a6b2f;--grass-light:#2a8a42;--grass-dark:#0f3d1a;
+  --pitch-line:#e8f5e9;--amber:#f59e0b;--amber-light:#fcd34d;
+  --red:#ef4444;--blue:#3b82f6;--purple:#8b5cf6;--teal:#14b8a6;
+  --white:#f0f4f0;--card-bg:rgba(10,40,15,0.9);--card-border:rgba(42,138,66,0.4);
+  --text-main:#e8f5e9;--text-muted:#86a98c;--shadow:0 8px 32px rgba(0,0,0,0.5);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Barlow',sans-serif;background:var(--grass-dark);min-height:100vh;color:var(--text-main);overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(180deg,rgba(26,107,47,0.55) 0,rgba(26,107,47,0.55) 60px,rgba(15,61,26,0.55) 60px,rgba(15,61,26,0.55) 120px);z-index:0;pointer-events:none;}
+.app{position:relative;z-index:1;max-width:520px;margin:0 auto;padding:14px 16px 40px;}
+
+/* ── Header ── */
+header{display:flex;align-items:center;justify-content:space-between;padding:16px 0 12px;border-bottom:2px solid var(--pitch-line);margin-bottom:16px;}
+.header-left{display:flex;align-items:center;gap:12px;}
+.ball-icon{width:42px;height:42px;background:radial-gradient(circle at 35% 35%,#fff 0%,#ccc 60%,#999 100%);border-radius:50%;display:grid;place-items:center;font-size:22px;box-shadow:0 4px 12px rgba(0,0,0,0.4);flex-shrink:0;}
+.app-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:26px;letter-spacing:1px;text-transform:uppercase;color:var(--white);line-height:1;}
+.app-sub{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:2px;}
+.reset-btn{background:none;border:1px solid rgba(239,68,68,0.4);color:#ef9494;padding:6px 12px;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .2s;}
+.reset-btn:hover{background:rgba(239,68,68,0.15);border-color:var(--red);color:#fca5a5;}
+.new-game-btn{background:none;border:1px solid rgba(42,138,66,0.5);color:var(--grass-light);padding:6px 12px;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .2s;}
+.new-game-btn:hover{background:rgba(42,138,66,0.15);border-color:var(--grass-light);color:#86efac;}
+
+/* ── Tabs ── */
+.tabs{display:flex;gap:5px;margin-bottom:14px;flex-wrap:wrap;}
+.tab-btn{flex:1;min-width:60px;padding:8px 3px;border:1px solid var(--card-border);background:rgba(0,0,0,0.3);color:var(--text-muted);border-radius:10px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .2s;}
+.tab-btn.active{background:var(--grass-light);border-color:var(--grass-light);color:#fff;}
+.tab-btn.disabled{opacity:0.35;cursor:not-allowed;pointer-events:none;filter:grayscale(0.4);}
+.tab-btn.disabled:hover{background:rgba(0,0,0,0.3);border-color:var(--card-border);color:var(--text-muted);}
+.tab-panel{display:none;}.tab-panel.active{display:block;}
+
+/* ── Card ── */
+.card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:16px;padding:18px;margin-bottom:14px;backdrop-filter:blur(8px);box-shadow:var(--shadow);}
+.card-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:2.5px;color:var(--text-muted);margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.card-title::before{content:'';display:block;width:3px;height:14px;background:var(--grass-light);border-radius:2px;}
+
+/* ── Duration ── */
+.duration-control{display:flex;align-items:center;background:rgba(0,0,0,0.3);border-radius:12px;overflow:hidden;border:1px solid var(--card-border);}
+.dur-btn{background:none;border:none;color:var(--text-main);width:56px;height:56px;font-size:24px;cursor:pointer;transition:background .15s;display:grid;place-items:center;flex-shrink:0;}
+.dur-btn:hover{background:rgba(42,138,66,0.3);}
+.dur-display{flex:1;text-align:center;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:42px;color:var(--white);line-height:56px;}
+.dur-label{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-muted);text-align:center;margin-top:6px;text-transform:uppercase;letter-spacing:2px;}
+.presets{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
+.preset-btn{flex:1;min-width:44px;background:rgba(0,0,0,0.25);border:1px solid var(--card-border);color:var(--text-muted);padding:6px 3px;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:all .15s;text-align:center;}
+.preset-btn:hover,.preset-btn.active{background:var(--grass-light);border-color:var(--grass-light);color:#fff;}
+
+/* ── Rotations per half control ── */
+.rot-control{display:flex;align-items:center;gap:0;background:rgba(0,0,0,0.3);border-radius:10px;overflow:hidden;border:1px solid var(--card-border);margin-top:14px;}
+.rot-btn{background:none;border:none;color:var(--text-main);width:46px;height:46px;font-size:22px;cursor:pointer;transition:background .15s;display:grid;place-items:center;flex-shrink:0;}
+.rot-btn:hover{background:rgba(42,138,66,0.3);}
+.rot-display{flex:1;text-align:center;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:32px;color:var(--white);line-height:46px;}
+.rot-label{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--text-muted);text-align:center;margin-top:5px;text-transform:uppercase;letter-spacing:2px;}
+
+/* ── Halves ── */
+.halves-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.half-card{background:rgba(0,0,0,0.3);border:1px solid var(--card-border);border-radius:12px;padding:14px;text-align:center;transition:border-color .3s;}
+.half-card.active{border-color:var(--amber);box-shadow:0 0 20px rgba(245,158,11,0.25);}
+.half-card.done{border-color:rgba(42,138,66,0.6);}
+.half-label{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted);margin-bottom:5px;}
+.half-card.active .half-label{color:var(--amber-light);}
+.half-timer{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:44px;line-height:1;color:var(--white);letter-spacing:-1px;}
+.half-card.active .half-timer{color:var(--amber-light);}
+.half-card.done .half-timer{color:var(--text-muted);}
+.half-gk{font-size:11px;color:var(--amber);margin-top:3px;font-weight:600;}
+.half-status{font-size:10px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:1px;min-height:14px;}
+.half-card.active .half-status{color:var(--amber);}
+.half-card.done .half-status{color:var(--grass-light);}
+.half-progress-wrap{background:rgba(0,0,0,0.4);border-radius:3px;height:4px;margin-top:8px;overflow:hidden;}
+.half-progress-bar{height:100%;background:var(--amber);border-radius:3px;transition:width 1s linear;width:0%;}
+.half-card.done .half-progress-bar{background:var(--grass-light);width:100%!important;}
+.controls{display:flex;gap:8px;margin-top:14px;}
+.ctrl-btn{flex:1;padding:13px 6px;border:none;border-radius:12px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:5px;}
+.ctrl-btn:disabled{opacity:.35;cursor:not-allowed;}
+.btn-start{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;box-shadow:0 4px 16px rgba(34,197,94,.35);}
+.btn-start:not(:disabled):hover{transform:translateY(-1px);}
+.btn-pause{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;}
+.btn-pause:not(:disabled):hover{transform:translateY(-1px);}
+.btn-resume{background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;}
+.btn-resume:not(:disabled):hover{transform:translateY(-1px);}
+.btn-next{background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:#fff;}
+.btn-next:not(:disabled):hover{transform:translateY(-1px);}
+
+/* ── Squad setup ── */
+.form-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.form-row label{font-size:13px;color:var(--text-muted);flex-shrink:0;min-width:130px;}
+.form-row select{flex:1;background:rgba(0,0,0,0.35);border:1px solid var(--card-border);color:var(--text-main);padding:7px 10px;border-radius:8px;font-family:'Barlow',sans-serif;font-size:14px;cursor:pointer;}
+.gk-selector-card{background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.3);border-radius:12px;padding:14px;margin-bottom:14px;}
+.gk-selector-title{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--amber);margin-bottom:12px;}
+.gk-selector-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.gk-selector-half label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1.5px;display:block;margin-bottom:5px;}
+.gk-selector-half select{width:100%;background:rgba(0,0,0,0.4);border:1px solid rgba(245,158,11,0.3);color:var(--text-main);padding:8px 10px;border-radius:8px;font-family:'Barlow',sans-serif;font-size:14px;cursor:pointer;}
+.gk-same-note{font-size:11px;color:rgba(245,158,11,0.7);margin-top:8px;text-align:center;}
+.player-list{display:flex;flex-direction:column;gap:7px;margin-bottom:12px;}
+.player-row{display:flex;align-items:center;gap:8px;}
+.player-num{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;color:var(--text-muted);width:20px;text-align:right;flex-shrink:0;}
+.player-input{flex:1;background:rgba(0,0,0,0.3);border:1px solid var(--card-border);color:var(--text-main);padding:8px 11px;border-radius:8px;font-family:'Barlow',sans-serif;font-size:14px;transition:border-color .2s;}
+.player-input:focus{outline:none;border-color:var(--grass-light);}
+.player-input::placeholder{color:rgba(134,169,140,0.5);}
+.gk-badge{font-size:10px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:1px;padding:2px 7px;border-radius:20px;flex-shrink:0;}
+.gk-badge.h1{background:rgba(245,158,11,0.2);color:var(--amber);border:1px solid rgba(245,158,11,0.35);}
+.gk-badge.h2{background:rgba(59,130,246,0.2);color:#93c5fd;border:1px solid rgba(59,130,246,0.3);}
+.gk-badge.both{background:rgba(139,92,246,0.2);color:#c4b5fd;border:1px solid rgba(139,92,246,0.3);}
+.squad-actions{display:flex;gap:8px;}
+.action-btn{flex:1;min-width:100px;padding:10px;border-radius:10px;border:none;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .2s;}
+.btn-generate{background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:#fff;}
+.btn-generate:hover{opacity:.9;transform:translateY(-1px);}
+.btn-save-squad{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;}
+.btn-save-squad:hover{opacity:.9;transform:translateY(-1px);}
+.squad-hint{font-size:11px;color:var(--text-muted);margin-top:8px;text-align:center;line-height:1.5;}
+
+/* ── Rotation plan ── */
+.plan-section{margin-bottom:18px;}
+.plan-section-title{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.08);}
+.bench-list{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px;}
+.bench-chip{background:rgba(0,0,0,0.3);border:1px solid var(--card-border);border-radius:20px;padding:5px 12px;font-size:13px;font-weight:600;color:var(--text-main);}
+.bench-chip.gk{background:rgba(245,158,11,0.1);border-color:rgba(245,158,11,0.3);color:var(--amber-light);}
+.rotation-slot{background:rgba(0,0,0,0.25);border:1px solid var(--card-border);border-radius:12px;padding:12px 14px;margin-bottom:8px;transition:all .2s;}
+.rotation-slot.upcoming{border-color:var(--amber);background:rgba(245,158,11,0.07);}
+.rotation-slot.done{opacity:.4;}
+.rot-slot-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.rot-slot-min{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:22px;color:var(--amber-light);}
+.rot-slot-min span{font-size:13px;font-weight:400;color:var(--text-muted);}
+.rot-slot-edit{background:none;border:1px solid var(--card-border);color:var(--text-muted);width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:13px;display:grid;place-items:center;transition:all .15s;}
+.rot-slot-edit:hover{border-color:var(--amber);color:var(--amber);}
+.rot-swap-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:start;}
+.rot-col-label{font-size:10px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px;}
+.rot-col-off .rot-col-label{color:#f87171;}
+.rot-col-on .rot-col-label{color:#4ade80;}
+.rot-arrow{font-size:20px;color:var(--text-muted);padding-top:16px;text-align:center;}
+.player-chip{display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:8px;font-size:13px;font-weight:600;margin-bottom:4px;}
+.player-chip.off{background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.25);color:#fca5a5;}
+.player-chip.on{background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.25);color:#86efac;}
+.gk-plan-row{display:flex;align-items:center;gap:10px;background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.25);border-radius:10px;padding:9px 12px;margin-bottom:8px;}
+.gk-plan-icon{font-size:16px;}
+.gk-plan-info{flex:1;font-size:13px;color:var(--text-main);}
+.gk-plan-info strong{color:var(--amber-light);}
+.empty-plan{text-align:center;padding:24px;color:var(--text-muted);font-size:13px;}
+
+/* ── Bench editor ── */
+.bench-editor{background:rgba(0,0,0,0.3);border:1px solid var(--amber);border-radius:12px;padding:14px;margin-bottom:10px;}
+.bench-editor-title{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--amber);margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+.bench-editor-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+.bench-picker-chip{display:flex;align-items:center;gap:6px;padding:7px 11px;border-radius:8px;background:rgba(0,0,0,0.3);border:1px solid var(--card-border);cursor:pointer;transition:all .15s;user-select:none;}
+.bench-picker-chip.selected{background:rgba(248,113,113,0.15);border-color:rgba(248,113,113,0.4);color:#fca5a5;}
+.bench-picker-chip .chip-check{width:16px;height:16px;border-radius:4px;border:1px solid var(--text-muted);display:grid;place-items:center;font-size:11px;flex-shrink:0;}
+.bench-picker-chip.selected .chip-check{background:#f87171;border-color:#f87171;color:#fff;}
+.bench-picker-chip .chip-name{font-size:13px;font-weight:600;}
+.bench-editor-hint{font-size:11px;color:var(--text-muted);margin-bottom:10px;line-height:1.5;}
+.bench-editor-actions{display:flex;gap:8px;}
+.bench-confirm-btn{flex:2;padding:9px;border:none;border-radius:8px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;text-transform:uppercase;cursor:pointer;}
+.bench-cancel-btn{flex:1;padding:9px;border:1px solid var(--card-border);border-radius:8px;background:none;color:var(--text-muted);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;cursor:pointer;}
+
+/* ── Time tracker ── */
+.time-tracker{display:flex;flex-direction:column;gap:6px;}
+.tracker-row{display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(0,0,0,0.2);border-radius:8px;border:1px solid var(--card-border);}
+.tracker-name{flex:1;font-size:14px;font-weight:500;}
+.tracker-bar-wrap{width:80px;height:5px;background:rgba(0,0,0,0.4);border-radius:3px;overflow:hidden;flex-shrink:0;}
+.tracker-bar{height:100%;background:var(--grass-light);border-radius:3px;transition:width .5s;}
+.tracker-time{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;color:var(--white);width:40px;text-align:right;flex-shrink:0;}
+.tracker-row.on-field .tracker-name{color:#4ade80;}
+.tracker-row.is-gk .tracker-name{color:var(--amber-light);}
+
+/* ── GAME TIME TAB ── */
+.gt-timer-block{text-align:center;padding:20px 0 10px;}
+.gt-half-label{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:3px;color:var(--text-muted);margin-bottom:4px;}
+.gt-main-timer{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:80px;line-height:1;letter-spacing:-2px;color:var(--amber-light);transition:color .3s;}
+.gt-main-timer.urgent{color:#f87171;}
+.gt-sub-label{font-size:13px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:1.5px;}
+.gt-progress-wrap{background:rgba(0,0,0,0.4);border-radius:4px;height:6px;margin:10px 0 0;overflow:hidden;}
+.gt-progress-bar{height:100%;background:var(--amber);border-radius:4px;transition:width 1s linear;}
+
+/* countdown ring */
+.gt-sub-countdown{display:flex;flex-direction:column;align-items:center;margin:14px 0 10px;}
+.gt-countdown-ring{position:relative;width:100px;height:100px;}
+.gt-countdown-ring svg{transform:rotate(-90deg);}
+.gt-countdown-ring .ring-bg{fill:none;stroke:rgba(245,158,11,0.15);stroke-width:8;}
+.gt-countdown-ring .ring-fill{fill:none;stroke:var(--amber);stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset 1s linear;stroke-dasharray:283;stroke-dashoffset:0;}
+.gt-countdown-ring .ring-fill.urgent{stroke:#f87171;}
+.gt-countdown-num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.gt-countdown-num .mins{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:26px;line-height:1;color:var(--white);}
+.gt-countdown-num .secs-label{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;}
+.gt-sub-next-label{font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1.5px;margin-top:6px;}
+
+/* interchange panel */
+.gt-interchange{background:rgba(0,0,0,0.3);border:1px solid var(--card-border);border-radius:14px;padding:14px;margin-bottom:14px;}
+.gt-interchange.active{border-color:var(--amber);background:rgba(245,158,11,0.06);}
+.gt-interchange-title{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted);margin-bottom:12px;}
+.gt-interchange.active .gt-interchange-title{color:var(--amber);}
+.gt-swap-grid{display:grid;grid-template-columns:1fr 36px 1fr;gap:8px;align-items:start;}
+.gt-col-label{font-size:10px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;font-weight:700;}
+.gt-col-off .gt-col-label{color:#f87171;}
+.gt-col-on .gt-col-label{color:#4ade80;}
+.gt-arrow{font-size:22px;color:var(--text-muted);padding-top:18px;text-align:center;}
+.gt-player-chip{padding:7px 10px;border-radius:8px;font-size:14px;font-weight:700;margin-bottom:5px;text-align:center;}
+.gt-player-chip.off{background:rgba(248,113,113,0.15);border:1px solid rgba(248,113,113,0.3);color:#fca5a5;}
+.gt-player-chip.on{background:rgba(74,222,128,0.15);border:1px solid rgba(74,222,128,0.3);color:#86efac;}
+.gt-player-chip.gk{background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);color:var(--amber-light);}
+.confirm-btn{width:100%;margin-top:12px;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:18px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;box-shadow:0 4px 20px rgba(34,197,94,.4);transition:all .2s;animation:pulseGreen 1.5s ease-in-out infinite;}
+.confirm-btn:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(34,197,94,.5);}
+.confirm-btn:active{transform:translateY(0);}
+@keyframes pulseGreen{0%,100%{box-shadow:0 4px 20px rgba(34,197,94,.3);}50%{box-shadow:0 4px 30px rgba(34,197,94,.6);}}
+
+.gt-bench-section{background:rgba(0,0,0,0.25);border:1px solid var(--card-border);border-radius:12px;padding:12px 14px;margin-bottom:14px;}
+.gt-bench-title{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted);margin-bottom:8px;}
+.gt-bench-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.gt-bench-chip{background:rgba(0,0,0,0.3);border:1px solid var(--card-border);border-radius:20px;padding:5px 12px;font-size:13px;font-weight:600;color:var(--text-muted);}
+.gt-bench-chip.next-on{background:rgba(74,222,128,0.12);border-color:rgba(74,222,128,0.3);color:#86efac;}
+
+.gt-halftime{background:linear-gradient(135deg,rgba(139,92,246,0.2),rgba(59,130,246,0.2));border:1px solid rgba(139,92,246,0.4);border-radius:14px;padding:18px;text-align:center;margin-bottom:14px;}
+.gt-halftime h3{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:26px;text-transform:uppercase;letter-spacing:2px;}
+.gt-halftime p{font-size:13px;color:rgba(255,255,255,0.7);margin-top:4px;}
+.gt-halftime .confirm-btn{margin-top:14px;background:linear-gradient(135deg,#8b5cf6,#7c3aed);animation:none;box-shadow:0 4px 16px rgba(139,92,246,.4);}
+.gt-no-match{text-align:center;padding:40px 20px;color:var(--text-muted);}
+.gt-no-match .big-icon{font-size:48px;margin-bottom:12px;}
+.gt-no-match p{font-size:14px;line-height:1.6;}
+
+/* ── Summary ── */
+.summary-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.07);font-size:13px;}
+.summary-row:last-child{border-bottom:none;}
+.summary-key{color:var(--text-muted);}
+.summary-val{font-weight:600;color:var(--white);}
+.badge{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;padding:3px 8px;border-radius:20px;background:rgba(42,138,66,0.3);color:var(--grass-light);border:1px solid rgba(42,138,66,0.4);}
+.badge.orange{background:rgba(245,158,11,0.2);color:var(--amber);border-color:rgba(245,158,11,0.3);}
+.badge.purple{background:rgba(139,92,246,0.2);color:#c4b5fd;border-color:rgba(139,92,246,0.3);}
+
+/* ── Full time ── */
+.fulltime-banner{display:none;background:linear-gradient(135deg,var(--grass),var(--grass-light));border-radius:12px;padding:18px;text-align:center;margin-bottom:14px;animation:popIn .4s ease;}
+.fulltime-banner.show{display:block;}
+.fulltime-banner h2{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:30px;letter-spacing:2px;text-transform:uppercase;}
+.fulltime-banner p{font-size:13px;color:rgba(255,255,255,.75);margin-top:4px;}
+
+/* ── Modals ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:100;align-items:flex-end;justify-content:center;}
+.modal-overlay.show{display:flex;}
+.modal{background:#122b18;border:1px solid var(--card-border);border-radius:20px 20px 0 0;padding:22px 18px 32px;width:100%;max-width:520px;animation:slideUp .3s ease;}
+.modal h3{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:18px;text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;}
+.modal-field{margin-bottom:14px;}
+.modal-field label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1.5px;display:block;margin-bottom:5px;}
+.modal-field select{width:100%;background:rgba(0,0,0,.35);border:1px solid var(--card-border);color:var(--text-main);padding:9px 12px;border-radius:10px;font-family:'Barlow',sans-serif;font-size:15px;}
+.modal-actions{display:flex;gap:10px;}
+.modal-save{flex:2;padding:12px;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:10px;color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;text-transform:uppercase;cursor:pointer;}
+.modal-cancel{flex:1;padding:12px;background:rgba(0,0,0,.3);border:1px solid var(--card-border);border-radius:10px;color:var(--text-muted);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;cursor:pointer;}
+
+@keyframes popIn{from{transform:scale(.9);opacity:0;}to{transform:scale(1);opacity:1;}}
+@keyframes slideUp{from{transform:translateY(40px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+@keyframes pulse-border{0%,100%{box-shadow:0 0 20px rgba(245,158,11,.25);}50%{box-shadow:0 0 30px rgba(245,158,11,.5);}}
+.half-card.active.running{animation:pulse-border 2s ease-in-out infinite;}
+
+footer{text-align:center;padding:16px 0 4px;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1.5px;}
+
+/* ── Goals ── */
+.goal-list{display:flex;flex-direction:column;gap:7px;margin-bottom:12px;}
+.goal-entry{display:flex;align-items:center;gap:8px;padding:9px 12px;background:rgba(0,0,0,0.25);border:1px solid var(--card-border);border-radius:10px;}
+.goal-entry.opponent{border-color:rgba(239,68,68,0.3);background:rgba(239,68,68,0.06);}
+.goal-time{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:var(--amber-light);width:36px;flex-shrink:0;}
+.goal-icon{font-size:16px;flex-shrink:0;}
+.goal-info{flex:1;font-size:13px;font-weight:600;}
+.goal-info .goal-detail{font-size:11px;color:var(--text-muted);font-weight:400;margin-top:1px;}
+.goal-del{background:none;border:none;color:rgba(239,68,68,0.5);font-size:16px;cursor:pointer;padding:2px 4px;flex-shrink:0;}
+.goal-del:hover{color:var(--red);}
+.score-display{display:flex;align-items:center;justify-content:center;gap:16px;padding:12px 0 4px;}
+.score-num{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:52px;line-height:1;color:var(--white);}
+.score-sep{font-family:'Barlow Condensed',sans-serif;font-size:32px;color:var(--text-muted);}
+.score-label{font-size:10px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted);text-align:center;margin-top:2px;}
+.add-goal-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;}
+.btn-goal-us{background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:10px;color:#fff;padding:11px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;text-transform:uppercase;cursor:pointer;}
+.btn-goal-them{background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.35);border-radius:10px;color:#fca5a5;padding:11px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;text-transform:uppercase;cursor:pointer;}
+
+/* ── Player Rules ── */
+.rules-section{background:rgba(0,0,0,0.2);border:1px solid var(--card-border);border-radius:12px;padding:14px;margin-bottom:14px;}
+.rules-title{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;}
+.rules-title span{color:var(--text-muted);}
+.rule-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);}
+.rule-row:last-of-type{border-bottom:none;}
+.rule-badge{font-size:10px;font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:2px 7px;border-radius:20px;flex-shrink:0;}
+.rule-badge.together{background:rgba(74,222,128,0.15);border:1px solid rgba(74,222,128,0.3);color:#86efac;}
+.rule-badge.apart{background:rgba(248,113,113,0.15);border:1px solid rgba(248,113,113,0.3);color:#fca5a5;}
+.rule-text{flex:1;font-size:13px;color:var(--text-main);}
+.rule-del{background:none;border:none;color:rgba(239,68,68,0.4);font-size:15px;cursor:pointer;}
+.rule-del:hover{color:var(--red);}
+.add-rule-form{margin-top:12px;background:rgba(0,0,0,0.2);border-radius:10px;padding:12px;}
+.add-rule-form label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1.5px;display:block;margin-bottom:5px;}
+.add-rule-form select{width:100%;background:rgba(0,0,0,0.35);border:1px solid var(--card-border);color:var(--text-main);padding:8px 10px;border-radius:8px;font-family:'Barlow',sans-serif;font-size:14px;margin-bottom:10px;}
+.add-rule-btn{width:100%;padding:9px;border:none;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;text-transform:uppercase;cursor:pointer;}
+
+/* ── Chime indicator ── */
+.chime-alert{background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.5);border-radius:10px;padding:8px 14px;margin-bottom:10px;display:flex;align-items:center;gap:8px;animation:pulseAmber 1s ease-in-out infinite;}
+@keyframes pulseAmber{0%,100%{opacity:1;}50%{opacity:0.6;}}
+.chime-alert-text{font-size:13px;color:var(--amber-light);font-weight:600;}
+
+/* ── Match Summary Report ── */
+.summary-report{background:var(--card-bg);border:1px solid var(--card-border);border-radius:16px;padding:20px;margin-bottom:14px;}
+.summary-report-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:22px;text-transform:uppercase;letter-spacing:2px;text-align:center;margin-bottom:4px;}
+.summary-report-date{font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:18px;text-transform:uppercase;letter-spacing:1.5px;}
+.summary-score-big{display:flex;align-items:center;justify-content:center;gap:20px;padding:16px 0;margin-bottom:16px;background:rgba(0,0,0,0.2);border-radius:12px;}
+.summary-score-big .score-num{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:64px;line-height:1;color:var(--white);}
+.summary-score-big .score-sep{font-family:'Barlow Condensed',sans-serif;font-size:36px;color:var(--text-muted);}
+.summary-score-big .score-team-label{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted);text-align:center;margin-top:4px;}
+.report-section{margin-bottom:16px;}
+.report-section-label{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid rgba(255,255,255,0.08);}
+.report-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.05);}
+.report-row:last-child{border-bottom:none;}
+.report-row .rk{color:var(--text-muted);}
+.report-row .rv{font-weight:600;color:var(--white);}
+.email-row{display:flex;gap:8px;margin-top:14px;}
+.email-input{flex:1;background:rgba(0,0,0,0.35);border:1px solid var(--card-border);color:var(--text-main);padding:10px 12px;border-radius:10px;font-family:'Barlow',sans-serif;font-size:14px;}
+.email-input:focus{outline:none;border-color:var(--grass-light);}
+.email-input::placeholder{color:rgba(134,169,140,0.5);}
+.email-send-btn{background:linear-gradient(135deg,#3b82f6,#2563eb);border:none;border-radius:10px;color:#fff;padding:10px 16px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;text-transform:uppercase;cursor:pointer;flex-shrink:0;}
+.email-send-btn:hover{opacity:0.9;}
+
+/* ── GK History ── */
+.gk-history-entry{background:rgba(0,0,0,0.25);border:1px solid var(--card-border);border-radius:12px;padding:12px 14px;margin-bottom:10px;}
+.gk-history-entry.editing{border-color:var(--amber);background:rgba(245,158,11,0.06);}
+.gkh-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.gkh-date{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;color:var(--white);}
+.gkh-edit-btn{background:none;border:1px solid var(--card-border);color:var(--text-muted);width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:13px;display:grid;place-items:center;transition:all .15s;}
+.gkh-edit-btn:hover{border-color:var(--amber);color:var(--amber);}
+.gkh-halves{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.gkh-half{background:rgba(0,0,0,0.2);border-radius:8px;padding:8px 10px;}
+.gkh-half-label{font-size:10px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted);margin-bottom:4px;}
+.gkh-half-name{font-size:14px;font-weight:600;color:var(--amber-light);}
+.gkh-half-name input{background:rgba(0,0,0,0.3);border:1px solid var(--amber);color:var(--text-main);padding:5px 8px;border-radius:6px;font-family:'Barlow',sans-serif;font-size:14px;width:100%;}
+.gkh-half-name input:focus{outline:none;}
+.gkh-save-btn{margin-top:10px;width:100%;padding:8px;border:none;border-radius:8px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;text-transform:uppercase;cursor:pointer;}
+.gkh-delete-btn{margin-top:6px;width:100%;padding:7px;border:1px solid rgba(239,68,68,0.3);border-radius:8px;background:none;color:#f87171;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;cursor:pointer;}
+.gkh-delete-btn:hover{background:rgba(239,68,68,0.1);}
+.gkh-empty{text-align:center;padding:24px;color:var(--text-muted);font-size:13px;}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header>
+  <div class="header-left">
+    <div class="ball-icon">⚽</div>
+    <div><div class="app-title">Vicki the Manager</div><div class="app-sub">Mitchie Match Assistant</div></div>
+  </div>
+  <div style="display:flex;gap:6px;">
+    <button class="new-game-btn" onclick="newGame()">⚽ New Game</button>
+    <button class="reset-btn" onclick="resetSession()">↺ Reset</button>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('match',this)">⏱ Match</button>
+  <button class="tab-btn" onclick="switchTab('squad',this)">👥 Squad</button>
+  <button class="tab-btn" onclick="switchTab('rotation',this)">🔄 Plan</button>
+  <button class="tab-btn" onclick="switchTab('gametime',this)">🟢 Live</button>
+  <button class="tab-btn" onclick="switchTab('time',this)">📊 Time</button>
+  <button class="tab-btn" onclick="switchTab('gkhistory',this)">📋 Games</button>
+</div>
+
+<!-- ═════════ MATCH TAB ═════════ -->
+<div id="tab-match" class="tab-panel active">
+
+  <!-- Opponent — top of page -->
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-title">Today's Match</div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <label style="font-size:13px;color:var(--text-muted);flex-shrink:0;">Opponent</label>
+      <input type="text" id="opponentInput" placeholder="e.g. Red Lions FC (optional)"
+        oninput="onOpponentInput(this)"
+        style="flex:1;background:rgba(0,0,0,0.3);border:1px solid var(--card-border);color:var(--text-main);padding:8px 11px;border-radius:8px;font-family:'Barlow',sans-serif;font-size:14px;">
+    </div>
+  </div>
+
+  <div class="card" id="setupCard">
+    <div class="card-title">Half Duration</div>
+    <div class="duration-control">
+      <button class="dur-btn" onclick="changeDuration(-5)">−</button>
+      <div class="dur-display" id="durDisplay">25</div>
+      <button class="dur-btn" onclick="changeDuration(+5)">+</button>
+    </div>
+    <div class="dur-label">minutes per half</div>
+    <div class="presets">
+      <button class="preset-btn" onclick="setDuration(5)">5</button>
+      <button class="preset-btn" onclick="setDuration(10)">10</button>
+      <button class="preset-btn" onclick="setDuration(15)">15</button>
+      <button class="preset-btn" onclick="setDuration(20)">20</button>
+      <button class="preset-btn active" onclick="setDuration(25)">25</button>
+      <button class="preset-btn" onclick="setDuration(30)">30</button>
+      <button class="preset-btn" onclick="setDuration(40)">40</button>
+      <button class="preset-btn" onclick="setDuration(50)">50</button>
+    </div>
+    <div style="margin-top:14px;">
+      <div class="rot-label" style="text-align:left;margin-bottom:6px;">Rotations per half</div>
+      <div class="rot-control">
+        <button class="rot-btn" onclick="changeRots(-1)">−</button>
+        <div class="rot-display" id="rotDisplay">4</div>
+        <button class="rot-btn" onclick="changeRots(+1)">+</button>
+      </div>
+      <div class="rot-label">rotation groups per half</div>
+    </div>
+    <!-- Vibration toggle -->
+    <div style="margin-top:10px;background:rgba(0,0,0,0.25);border:1px solid var(--card-border);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;" onclick="toggleVibration()" id="vibRow">
+      <div style="flex:1">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:1px;text-transform:uppercase;color:var(--text-main)">Vibration Alerts</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;line-height:1.4">Chirps every second for 10s before rotation · strong buzz on rotation &amp; end of half · Android only</div>
+      </div>
+      <div id="vibToggle" style="width:44px;height:26px;border-radius:13px;background:var(--grass-light);border:2px solid var(--grass-light);position:relative;transition:background .2s;flex-shrink:0;">
+        <div id="vibKnob" style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:1px;left:21px;transition:left .2s;box-shadow:0 1px 4px rgba(0,0,0,0.3);"></div>
+      </div>
+    </div>
+    <!-- Audio toggle -->
+    <div style="margin-top:8px;background:rgba(0,0,0,0.25);border:1px solid var(--card-border);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;" onclick="toggleAudio()" id="audioRow">
+      <div style="flex:1">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:1px;text-transform:uppercase;color:var(--text-main)">Audio Alerts</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;line-height:1.4">Soft tick before rotation · double beep on rotation · whistle for half &amp; full time · works on all devices</div>
+      </div>
+      <div id="audioToggle" style="width:44px;height:26px;border-radius:13px;background:var(--grass-light);border:2px solid var(--grass-light);position:relative;transition:background .2s;flex-shrink:0;">
+        <div id="audioKnob" style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:1px;left:21px;transition:left .2s;box-shadow:0 1px 4px rgba(0,0,0,0.3);"></div>
+      </div>
+    </div>
+    <div style="margin-top:14px;background:rgba(0,0,0,0.25);border:1px solid var(--card-border);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;" onclick="toggleFullBench()" id="fullBenchRow">
+      <div style="flex:1">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:1px;text-transform:uppercase;color:var(--text-main)">Full Bench Rotation</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;line-height:1.4">Swap entire bench at once — e.g. all 3 bench players rotate on together</div>
+      </div>
+      <div id="fullBenchToggle" style="width:44px;height:26px;border-radius:13px;background:var(--grass-light);border:2px solid var(--grass-light);position:relative;transition:background .2s;flex-shrink:0;">
+        <div id="fullBenchKnob" style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:1px;left:1px;transition:left .2s;box-shadow:0 1px 4px rgba(0,0,0,0.3);"></div>
+      </div>
+    </div>
+  </div>
+  <div id="fullBenchExplainer" style="margin-top:-10px;margin-bottom:14px;background:rgba(42,138,66,0.1);border:1px solid rgba(42,138,66,0.25);border-radius:0 0 12px 12px;padding:9px 14px;font-size:12px;color:var(--text-muted);line-height:1.5;display:block;"></div>
+
+  <div class="card">
+    <div class="card-title">Match Timer</div>
+    <div class="halves-grid">
+      <div class="half-card" id="half1Card">
+        <div class="half-label">1st Half</div>
+        <div class="half-timer" id="half1Time">25:00</div>
+        <div class="half-gk" id="half1Gk"></div>
+        <div class="half-status" id="half1Status">Ready</div>
+        <div class="half-progress-wrap"><div class="half-progress-bar" id="half1Progress"></div></div>
+      </div>
+      <div class="half-card" id="half2Card">
+        <div class="half-label">2nd Half</div>
+        <div class="half-timer" id="half2Time">25:00</div>
+        <div class="half-gk" id="half2Gk"></div>
+        <div class="half-status" id="half2Status">Waiting</div>
+        <div class="half-progress-wrap"><div class="half-progress-bar" id="half2Progress"></div></div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="ctrl-btn btn-start" id="startBtn" onclick="startHalf()">▶ Kick Off</button>
+      <button class="ctrl-btn btn-pause" id="pauseBtn" onclick="pauseTimer()" style="display:none">⏸ Pause</button>
+      <button class="ctrl-btn btn-resume" id="resumeBtn" onclick="resumeTimer()" style="display:none">▶ Resume</button>
+      <button class="ctrl-btn btn-next" id="nextBtn" onclick="startSecondHalf()" style="display:none">▶▶ 2nd Half</button>
+    </div>
+  </div>
+
+  <div class="fulltime-banner" id="fulltimeBanner"><h2>⚽ Full Time!</h2><p>Great game — well played everyone!</p></div>
+
+  <div class="card">
+    <div class="card-title">Session Info</div>
+    <div class="summary-row"><span class="summary-key">Half duration</span><span class="summary-val" id="summaryDuration">25 min</span></div>
+    <div class="summary-row"><span class="summary-key">Total match time</span><span class="summary-val" id="summaryTotal">50 min</span></div>
+    <div class="summary-row"><span class="summary-key">Rotations per half</span><span class="summary-val" id="summaryRots">2</span></div>
+    <div class="summary-row"><span class="summary-key">Full bench rotation</span><span class="summary-val" id="summaryFBR">On</span></div>
+    <div class="summary-row"><span class="summary-key">Match status</span><span id="summaryStatus"><span class="badge">Pre-match</span></span></div>
+    <div class="summary-row" id="half1StartRow" style="display:none"><span class="summary-key">1st Half kicked off</span><span class="summary-val" id="summaryH1Start">—</span></div>
+    <div class="summary-row" id="half2StartRow" style="display:none"><span class="summary-key">2nd Half kicked off</span><span class="summary-val" id="summaryH2Start">—</span></div>
+    <div class="summary-row" id="squadInfoRow" style="display:none"><span class="summary-key">Squad</span><span class="summary-val" id="summarySquad">—</span></div>
+  </div>
+</div>
+
+<!-- ═════════ SQUAD TAB ═════════ -->
+<div id="tab-squad" class="tab-panel">
+
+  <!-- Team size -->
+  <div class="card">
+    <div class="card-title">Team Setup</div>
+    <div class="form-row"><label>Players on field:</label>
+      <select id="teamSizeSelect" onchange="onTeamSizeChange()">
+        <option value="3">3-a-side</option><option value="4">4-a-side</option>
+        <option value="5">5-a-side</option><option value="6">6-a-side</option>
+        <option value="7" selected>7-a-side</option><option value="8">8-a-side</option>
+        <option value="9">9-a-side</option><option value="10">10-a-side</option>
+        <option value="11">11-a-side</option><option value="12">12-a-side</option>
+      </select>
+    </div>
+    <div class="form-row"><label>Total squad size:</label>
+      <select id="squadSizeSelect" onchange="onSquadSizeChange()">
+        <option value="3">3</option><option value="4">4</option><option value="5">5</option>
+        <option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option>
+        <option value="10" selected>10</option><option value="11">11</option><option value="12">12</option>
+        <option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Player names -->
+  <div class="card">
+    <div class="card-title">Players</div>
+    <div id="playerList" class="player-list"></div>
+  </div>
+
+  <!-- Goalkeeper assignment -->
+  <div class="card">
+    <div class="card-title">Goalkeepers</div>
+    <div class="gk-selector-grid">
+      <div class="gk-selector-half"><label>1st Half GK</label>
+        <select id="gk1Select" onchange="onGkChange()"><option value="">— select —</option></select>
+      </div>
+      <div class="gk-selector-half"><label>2nd Half GK</label>
+        <select id="gk2Select" onchange="onGkChange()"><option value="">— select —</option></select>
+      </div>
+    </div>
+    <div class="gk-same-note" id="gkSameNote" style="display:none;margin-top:10px;">⚠️ Same GK both halves — plays full match in goal, not in outfield rotation</div>
+    <div class="squad-hint" style="margin-top:10px;">H1 GK plays in goal for the 1st half then rotates outfield in the 2nd. H2 GK plays outfield in the 1st half then takes goal in the 2nd.</div>
+  </div>
+
+  <!-- Rotation Rules -->
+  <div class="card">
+    <div class="card-title">Rotation Rules</div>
+    <div id="rulesList"></div>
+    <div class="add-rule-form" style="margin-top:8px;">
+      <label>Rule type</label>
+      <select id="ruleTypeSelect">
+        <option value="apart">Never off at the same time</option>
+        <option value="together">Always rotate off together</option>
+      </select>
+      <select id="rulePlayerA" style="margin-bottom:8px;"></select>
+      <select id="rulePlayerB"></select>
+      <button class="add-rule-btn" onclick="addPlayerRule()">+ Add Rule</button>
+    </div>
+  </div>
+
+  <!-- Save -->
+  <div class="squad-actions" style="margin-bottom:20px;">
+    <button class="action-btn btn-save-squad" style="padding:14px;" onclick="saveSquad()">💾 Save Squad</button>
+  </div>
+
+</div>
+
+<!-- ═════════ ROTATION PLAN TAB ═════════ -->
+<div id="tab-rotation" class="tab-panel">
+  <div class="card">
+    <div class="card-title">Interchange Planner</div>
+    <div id="rotationContent"><div class="empty-plan">Save your squad first, then generate a rotation plan.</div></div>
+    <div id="rotationActions" style="margin-top:12px;display:none;">
+      <button class="action-btn btn-generate" style="width:100%" onclick="generateRotation()">🎲 Re-Generate Random Rotation</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════ GAME TIME TAB ═════════ -->
+<div id="tab-gametime" class="tab-panel">
+  <div id="gameTimeContent"></div>
+</div>
+
+<!-- ═════════ TIME TAB ═════════ -->
+<div id="tab-time" class="tab-panel">
+  <div class="card">
+    <div class="card-title">Field Time</div>
+    <div id="timeTrackerContent"><div class="empty-plan">Save your squad to enable time tracking.</div></div>
+  </div>
+</div>
+
+<!-- ═════════ GAMES TAB ═════════ -->
+<div id="tab-gkhistory" class="tab-panel">
+  <div class="card">
+    <div class="card-title">Games</div>
+    <div id="gkHistoryContent"><div class="empty-plan">No matches recorded yet. Games are saved automatically at full time.</div></div>
+  </div>
+</div>
+
+</div><!-- .app -->
+
+<!-- Goal Entry Modal -->
+<div class="modal-overlay" id="goalModal" onclick="closeModal('goalModal',event)">
+  <div class="modal">
+    <h3 id="goalModalTitle">Record Goal</h3>
+    <div class="modal-field" id="goalOpponentNameField" style="display:none">
+      <label>Opponent scorer (optional)</label>
+      <input type="text" id="goalOpponentName" placeholder="e.g. #9 red team"
+        style="width:100%;background:rgba(0,0,0,0.35);border:1px solid var(--card-border);color:var(--text-main);padding:9px 12px;border-radius:10px;font-family:'Barlow',sans-serif;font-size:15px;">
+    </div>
+    <div class="modal-field" id="goalScorerField">
+      <label id="goalScorerLabel">Scorer (on field)</label>
+      <select id="goalScorerSelect"></select>
+    </div>
+    <div class="modal-field">
+      <label>Time (auto-filled, edit if needed)</label>
+      <input type="number" id="goalTimeInput" min="0" max="200" placeholder="elapsed minutes"
+        style="width:100%;background:rgba(0,0,0,0.35);border:1px solid var(--card-border);color:var(--text-main);padding:9px 12px;border-radius:10px;font-family:'Barlow',sans-serif;font-size:15px;">
+    </div>
+    <div class="modal-field">
+      <label>Notes (optional)</label>
+      <input type="text" id="goalDetail" placeholder="e.g. Corner kick, left foot"
+        style="width:100%;background:rgba(0,0,0,0.35);border:1px solid var(--card-border);color:var(--text-main);padding:9px 12px;border-radius:10px;font-family:'Barlow',sans-serif;font-size:15px;">
+    </div>
+    <div class="modal-actions">
+      <button class="modal-save" onclick="saveGoal()">⚽ Save Goal</button>
+      <button class="modal-cancel" onclick="closeModal('goalModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Sub Modal -->
+<div class="modal-overlay" id="editModal" onclick="closeModal('editModal',event)">
+  <div class="modal">
+    <h3 id="modalTitle">Edit Rotation</h3>
+    <div id="modalPlayerFields"></div>
+    <div class="modal-actions">
+      <button class="modal-save" onclick="saveModalEdit()">✓ Save</button>
+      <button class="modal-cancel" onclick="closeModal('editModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit GK Modal -->
+<div class="modal-overlay" id="gkModal" onclick="closeModal('gkModal',event)">
+  <div class="modal">
+    <h3 id="gkModalTitle">Change Goalkeeper</h3>
+    <div class="modal-field">
+      <label id="gkModalLabel">Goalkeeper</label>
+      <select id="gkModalSelect"></select>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-save" onclick="saveGkEdit()">✓ Save</button>
+      <button class="modal-cancel" onclick="closeModal('gkModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<footer>Vicki the Manager v1.02 · Data expires after 12 months</footer>
+
+<script>
+// ══════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════
+const DB_NAME    = 'coachHQ';
+const DB_VERSION = 1;
+const DB_STORE   = 'state';
+const DB_KEY     = 'v5';
+
+let state = {
+  duration: 25,
+  rotsPerHalf: 4,
+  fullBenchRotation: true,
+  vibration: true,
+  audio: true,
+  squadSaved: false,
+  tickerStartMs: null,
+  tickerStartRemaining: null,
+  phase: 'pre', // pre|half1|half1_paused|half1_done|half2|half2_paused|done
+  half1Remaining: 25 * 60,
+  half2Remaining: 25 * 60,
+  half1KickoffStr: null,
+  half2KickoffStr: null,
+  teamSize: 7,
+  squadSize: 10,
+  players: [],     // [{id,name}]
+  gk1Id: null,
+  gk2Id: null,
+  // rotation: [{half, rotIndex, secMark, offIds:[], onIds:[], done, isGkSwap}]
+  rotation: [],
+  h1StartOnField: [],  // outfield players starting 1st half on field
+  h1StartBench: [],    // outfield players starting 1st half on bench
+  h2StartOnField: [],  // outfield players starting 2nd half on field
+  h2StartBench: [],    // outfield players starting 2nd half on bench
+  fieldTime: {},   // {id: secs}
+  onField: [],     // [id]
+  gkHistory: [],   // [{id, date, gk1Name, gk2Name, dateMs}]
+  goals: [],       // [{id, half, elapsedSecs, scorerId, scorerName, isOpponent, detail}]
+  playerRules: [], // [{id, type:'together'|'apart', playerIds:[id,id], label}]
+  opponent: '',    // optional opponent name set in Plan tab
+};
+
+let ticker = null;
+let chimeInterval = null;  // repeating buzz while rotation is unconfirmed
+let editingSlot = null;   // {half, rotIndex}
+let editingGkHalf = null;
+let benchEditing = null;  // null | 1 | 2  — which half's bench is being edited
+
+// ══════════════════════════════════════════════════════
+// INDEXEDDB STORAGE
+// ══════════════════════════════════════════════════════
+let _db = null;
+
+function _openDB() {
+  return new Promise((resolve, reject) => {
+    if (_db) { resolve(_db); return; }
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = e => {
+      e.target.result.createObjectStore(DB_STORE);
+    };
+    req.onsuccess = e => { _db = e.target.result; resolve(_db); };
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+function saveData() {
+  _openDB().then(db => {
+    const tx  = db.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).put(JSON.parse(JSON.stringify(state)), DB_KEY);
+  }).catch(e => console.warn('saveData error:', e));
+}
+
+function loadData(callback) {
+  _openDB().then(db => {
+    const tx  = db.transaction(DB_STORE, 'readonly');
+    const req = tx.objectStore(DB_STORE).get(DB_KEY);
+    req.onsuccess = e => {
+      const saved = e.target.result;
+      if (saved) {
+        try {
+          state = {...state, ...saved};
+          if (state.phase==='half1') state.phase='half1_paused';
+          if (state.phase==='half2') state.phase='half2_paused';
+          // Migrate old minuteMark → secMark (from pre-v1.02 saves)
+          if (state.rotation) {
+            state.rotation = state.rotation.map(r => {
+              if (r.minuteMark !== undefined && r.secMark === undefined) {
+                return {...r, secMark: r.minuteMark * 60};
+              }
+              return r;
+            });
+          }
+          // Ensure required arrays exist
+          if (!state.goals)          state.goals = [];
+          if (!state.playerRules)    state.playerRules = [];
+          if (!state.gkHistory)      state.gkHistory = [];
+          if (!state.h1StartOnField) state.h1StartOnField = [];
+          if (!state.h2StartOnField) state.h2StartOnField = [];
+          if (!state.h1StartBench)   state.h1StartBench = [];
+          if (!state.h2StartBench)   state.h2StartBench = [];
+        } catch(e2) { console.warn('loadData error:', e2); }
+      }
+      callback();
+    };
+    req.onerror = () => callback();
+  }).catch(() => callback());
+}
+
+function clearData() {
+  _openDB().then(db => {
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).delete(DB_KEY);
+  }).catch(e => console.warn('clearData error:', e));
+}
+function resetSession() {
+  if (!confirm('Reset EVERYTHING including squad and all history? This cannot be undone.')) return;
+  stopTicker();
+  stopChime();
+  clearData();
+  state = {duration:25,rotsPerHalf:4,fullBenchRotation:true,vibration:true,audio:true,squadSaved:false,phase:'pre',half1Remaining:25*60,half2Remaining:25*60,
+    half1KickoffStr:null,half2KickoffStr:null,teamSize:7,squadSize:10,
+    players:[],gk1Id:null,gk2Id:null,rotation:[],
+    h1StartOnField:[],h1StartBench:[],h2StartOnField:[],h2StartBench:[],
+    fieldTime:{},onField:[],gkHistory:[],goals:[],playerRules:[]};
+  // Switch back to Match tab
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-match').classList.add('active');
+  document.querySelector('.tab-btn').classList.add('active');
+  render();
+  renderSquadTab();
+}
+
+function newGame() {
+  if (!confirm('Start a new game? Match data will be reset but your squad and history will be kept.')) return;
+  stopTicker();
+  stopChime();
+  // Keep squad, GK assignments, settings, and history — only reset match state
+  state.phase='pre';
+  state.half1Remaining=state.duration*60;
+  state.half2Remaining=state.duration*60;
+  state.half1KickoffStr=null;
+  state.half2KickoffStr=null;
+  state.rotation=[];
+  state.h1StartOnField=[];
+  state.h1StartBench=[];
+  state.h2StartOnField=[];
+  state.h2StartBench=[];
+  state.fieldTime={};
+  state.players.forEach(p=>{state.fieldTime[p.id]=0;});
+  state.onField=state.players.slice(0,state.teamSize).map(p=>p.id);
+  state.goals=[];
+  state.opponent='';
+  generateRotation(true);
+  saveData();
+  // Switch to Match tab
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-match').classList.add('active');
+  document.querySelector('.tab-btn').classList.add('active');
+  render();
+}
+
+// ══════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════
+function uid() { return Math.random().toString(36).slice(2,9); }
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function pName(id) { const p=state.players.find(x=>x.id===id); return p?(p.name||'Player'):'?'; }
+function fmtTime(s) { return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }
+function shuffle(a) { for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+
+// ══════════════════════════════════════════════════════
+// TABS
+// ══════════════════════════════════════════════════════
+// Tabs that require a saved squad
+const SQUAD_GATED_TABS = ['rotation','gametime','time'];
+
+function squadIsReady() {
+  return !!(state.squadSaved && state.players.filter(p=>p.name).length > 0);
+}
+
+function updateTabStates() {
+  const ready = squadIsReady();
+  const matchActive = ['half1','half1_paused','half1_done','half2','half2_paused','done'].includes(state.phase);
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    const match = btn.getAttribute('onclick') && btn.getAttribute('onclick').match(/switchTab\('(\w+)'/);
+    if (!match) return;
+    const tabName = match[1];
+    if (SQUAD_GATED_TABS.includes(tabName)) {
+      // gametime is accessible if match is active, even without squad saved
+      const accessible = ready || (tabName === 'gametime' && matchActive);
+      if (accessible) {
+        btn.classList.remove('disabled');
+        btn.title = '';
+      } else {
+        btn.classList.add('disabled');
+        btn.title = tabName === 'gametime'
+          ? 'Start a match to access the Live tab'
+          : 'Save your squad first to unlock this tab';
+      }
+    }
+  });
+}
+
+function switchTab(name, btn) {
+  // Block locked tabs if squad not saved
+  // Exception: allow gametime if match is in progress
+  const matchActive = ['half1','half1_paused','half1_done','half2','half2_paused','done'].includes(state.phase);
+  if (SQUAD_GATED_TABS.includes(name) && !squadIsReady() && !(name==='gametime' && matchActive)) return;
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+  if (name==='squad') renderSquadTab();
+  if (name==='rotation') renderRotationPlan();
+  if (name==='gametime') renderGameTime();
+  if (name==='time') renderTimeTracker();
+  if (name==='gkhistory') renderGkHistory();
+}
+
+function onOpponentInput(el) {
+  state.opponent = el.value.trim();
+  saveData();
+}
+
+function populateOpponentField() {
+  const el = document.getElementById('opponentInput');
+  if(el && el !== document.activeElement) {
+    el.value = state.opponent || '';
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// DURATION + ROTATIONS
+// ══════════════════════════════════════════════════════
+function changeDuration(d) { if(state.phase!=='pre') return; setDuration(Math.max(5,Math.min(50,state.duration+d))); }
+function setDuration(v) {
+  if(state.phase!=='pre') return;
+  state.duration=v; state.half1Remaining=v*60; state.half2Remaining=v*60;
+  if(state.players.length) generateRotation(true);
+  saveData(); render();
+}
+function changeRots(d) {
+  if(state.phase!=='pre') return;
+  state.rotsPerHalf = Math.max(0, Math.min(6, state.rotsPerHalf+d));
+  if(state.players.length) generateRotation(true);
+  saveData(); render();
+}
+function toggleFullBench() {
+  if(state.phase!=='pre') return;
+  state.fullBenchRotation = !state.fullBenchRotation;
+  if(state.players.length) generateRotation(true);
+  saveData(); render();
+}
+
+// ══════════════════════════════════════════════════════
+// SQUAD
+// ══════════════════════════════════════════════════════
+function onTeamSizeChange() { state.teamSize=parseInt(document.getElementById('teamSizeSelect').value); saveData(); }
+function onSquadSizeChange() {
+  const n=parseInt(document.getElementById('squadSizeSelect').value);
+  state.squadSize=n;
+  while(state.players.length<n) state.players.push({id:uid(),name:''});
+  state.players=state.players.slice(0,n);
+  saveData(); renderSquadTab();
+}
+function onGkChange() {
+  state.gk1Id=document.getElementById('gk1Select').value||null;
+  state.gk2Id=document.getElementById('gk2Select').value||null;
+  document.getElementById('gkSameNote').style.display=(state.gk1Id&&state.gk2Id&&state.gk1Id===state.gk2Id)?'':'none';
+  updateGkBadges();
+}
+
+function renderSquadTab() {
+  const ts=document.getElementById('teamSizeSelect');
+  const ss=document.getElementById('squadSizeSelect');
+  if(ts) ts.value=state.teamSize;
+  if(ss) ss.value=state.squadSize;
+  while(state.players.length<state.squadSize) state.players.push({id:uid(),name:''});
+  state.players=state.players.slice(0,state.squadSize);
+
+  const list=document.getElementById('playerList');
+  if(!list) return;
+  list.innerHTML='';
+  state.players.forEach((p,i)=>{
+    const row=document.createElement('div');
+    row.className='player-row';
+    row.innerHTML=`<span class="player-num">${i+1}</span>
+      <input class="player-input" type="text" placeholder="Player ${i+1}"
+        value="${esc(p.name)}" data-idx="${i}" oninput="onNameInput(this)">
+      <span id="gbadge-${p.id}"></span>`;
+    list.appendChild(row);
+  });
+  populateGkSelects();
+  updateGkBadges();
+  renderRulesList();
+  populateRulePlayerSelects();
+}
+
+function populateGkSelects() {
+  const g1=document.getElementById('gk1Select');
+  const g2=document.getElementById('gk2Select');
+  if(!g1||!g2) return;
+  const opts=state.players.map(p=>`<option value="${p.id}">${esc(p.name||'Player')}</option>`).join('');
+  g1.innerHTML='<option value="">— select —</option>'+opts;
+  g2.innerHTML='<option value="">— select —</option>'+opts;
+  if(state.gk1Id) g1.value=state.gk1Id;
+  if(state.gk2Id) g2.value=state.gk2Id;
+  document.getElementById('gkSameNote').style.display=(state.gk1Id&&state.gk2Id&&state.gk1Id===state.gk2Id)?'':'none';
+}
+
+function updateGkBadges() {
+  state.players.forEach(p=>{
+    const el=document.getElementById('gbadge-'+p.id);
+    if(!el) return;
+    const isG1=p.id===state.gk1Id, isG2=p.id===state.gk2Id;
+    if(isG1&&isG2){el.className='gk-badge both';el.textContent='GK Both';}
+    else if(isG1){el.className='gk-badge h1';el.textContent='GK H1';}
+    else if(isG2){el.className='gk-badge h2';el.textContent='GK H2';}
+    else{el.className='';el.textContent='';}
+  });
+}
+
+function onNameInput(el) {
+  const idx=parseInt(el.dataset.idx);
+  if(state.players[idx]) state.players[idx].name=el.value.trim();
+  populateGkSelects();
+  populateRulePlayerSelects();
+}
+
+function saveSquad() {
+  document.querySelectorAll('.player-input').forEach(el=>{
+    const idx=parseInt(el.dataset.idx);
+    if(state.players[idx]) state.players[idx].name=el.value.trim();
+  });
+  state.teamSize=parseInt(document.getElementById('teamSizeSelect').value);
+  state.squadSize=parseInt(document.getElementById('squadSizeSelect').value);
+  state.gk1Id=document.getElementById('gk1Select').value||null;
+  state.gk2Id=document.getElementById('gk2Select').value||null;
+
+  state.fieldTime={};
+  state.players.forEach(p=>{state.fieldTime[p.id]=0;});
+
+  // Starting XI is determined by generateRotation (h1StartOnField).
+  // Set a provisional onField now; generateRotation will set h1StartOnField.
+  // We'll assign onField properly in startHalf() using h1StartOnField.
+  state.onField = state.players.slice(0, state.teamSize).map(p=>p.id);
+
+  saveData();
+  generateRotation(true);
+  updateGkBadges();
+  state.squadSaved = true;
+  saveData();
+  render();
+  alert('✅ Squad saved! All tabs are now unlocked.');
+}
+
+// ══════════════════════════════════════════════════════
+// ROTATION GENERATION
+//
+// fullBenchRotation = true (default):
+//   The entire bench rotates on at each interval.
+//   All bench players come on, all swapped players go to bench.
+//   Cycles repeat so everyone gets equal time.
+//
+// fullBenchRotation = false:
+//   Spread bench players across rotations one-by-one.
+// ══════════════════════════════════════════════════════
+function generateRotation(silent) {
+  state.rotation=[];
+
+  const gk1=state.gk1Id, gk2=state.gk2Id;
+
+  // GK swap at half time (always, if different players)
+  if(gk1&&gk2&&gk1!==gk2) {
+    state.rotation.push({half:1,rotIndex:999,secMark:state.duration*60,
+      offIds:[gk1],onIds:[gk2],done:false,isGkSwap:true});
+  }
+
+  // teamSize includes the GK, so outfield spots per half = teamSize - 1
+  const fieldSlots = state.teamSize - 1;
+
+  // H1: GK1 is locked in goal — excluded from H1 pool entirely.
+  //     GK2 plays outfield in H1 and CAN rotate on/off normally.
+  // H2: GK2 is locked in goal — excluded from H2 pool entirely.
+  //     GK1 plays outfield in H2 and CAN rotate on/off normally.
+  const h1Pool = state.players.filter(p => p.id !== gk1).map(p => p.id);
+  const h2Pool = state.players.filter(p => p.id !== gk2).map(p => p.id);
+
+  const h1BenchSize = h1Pool.length - fieldSlots;
+  const h2BenchSize = h2Pool.length - fieldSlots;
+
+  const rph = state.rotsPerHalf;
+  const fbr = state.fullBenchRotation;
+
+  function buildFullBenchHalf(half, startOn, bench, dur) {
+    if(bench.length===0) return;
+    const swapN = Math.min(bench.length, fieldSlots);
+    // Space rotations evenly across the full half, not just the start
+    // Use round() so e.g. 5 min / 3 slots = 1.67 -> intervals at 1.67, 3.33 mins
+    let onQueue  = [...startOn];
+    let offQueue = [...bench];
+
+    for(let r=0; r<rph; r++){
+      // Evenly distribute: place rotation r at (r+1)/(rph+1) of the half
+      const min = Math.round((dur * 60 * (r+1)) / (rph+1));
+      if(min <= 0 || min >= dur*60) break;
+      if(offQueue.length === 0) break;
+
+      const actualSwap = Math.min(swapN, offQueue.length, onQueue.length);
+      const goingOff = onQueue.slice(0, actualSwap);
+      const goingOn  = offQueue.slice(0, actualSwap);
+      if(!goingOff.length || !goingOn.length) continue;
+
+      state.rotation.push({
+        half, rotIndex:r, secMark:min,
+        offIds:[...goingOff], onIds:[...goingOn],
+        done:false, isGkSwap:false
+      });
+
+      onQueue  = onQueue.filter(id=>!goingOff.includes(id)); onQueue.push(...goingOn);
+      offQueue = offQueue.filter(id=>!goingOn.includes(id)); offQueue.push(...goingOff);
+    }
+  }
+
+  function buildIndividualHalf(half, startOn, bench, dur) {
+    if(bench.length===0) return;
+    let currentOn  = [...startOn];
+    let currentOff = [...bench];
+
+    for(let r=0; r<rph; r++){
+      const min = Math.round((dur * 60 * (r+1)) / (rph+1));
+      if(min <= 0 || min >= dur*60) break;
+      if(currentOff.length === 0) break;
+
+      const remaining = rph - r;
+      const swapN = Math.min(Math.max(1, Math.ceil(currentOff.length / remaining)), fieldSlots, currentOn.length);
+      const goingOff = currentOn.slice(0, swapN);
+      const goingOn  = currentOff.slice(0, swapN);
+
+      state.rotation.push({
+        half, rotIndex:r, secMark:min,
+        offIds:[...goingOff], onIds:[...goingOn],
+        done:false, isGkSwap:false
+      });
+
+      currentOn  = currentOn.filter(id=>!goingOff.includes(id)); currentOn.push(...goingOn);
+      currentOff = currentOff.filter(id=>!goingOn.includes(id)); currentOff.push(...goingOff);
+    }
+  }
+
+  // ── HALF 1 ──
+  // GK2 gets bench priority in H1 — they play full H2 in goal so should rest more in H1.
+  // Place GK2 at the back of the bench queue (comes on last), shuffle the rest.
+  if(h1BenchSize > 0) {
+    // Separate GK2 from the rest of the h1Pool
+    const h1PoolWithoutGk2 = h1Pool.filter(id => id !== gk2);
+    const shuffled = shuffle([...h1PoolWithoutGk2]);
+
+    let h1On, h1Bench;
+    if(gk2 && h1Pool.includes(gk2)) {
+      // GK2 starts on bench (bench priority for future GK)
+      // Fill field from shuffled non-GK2 players, put GK2 first on bench
+      h1On    = shuffled.slice(0, fieldSlots);
+      h1Bench = [gk2, ...shuffled.slice(fieldSlots)];
+      // If bench has too many (because GK2 added), trim to benchSize
+      if(h1Bench.length > h1BenchSize) h1Bench = h1Bench.slice(0, h1BenchSize);
+      // If on-field is short (rare), top up
+      if(h1On.length < fieldSlots) h1On.push(...h1Bench.splice(1, fieldSlots - h1On.length));
+    } else {
+      h1On    = shuffled.slice(0, fieldSlots);
+      h1Bench = shuffled.slice(fieldSlots);
+    }
+
+    state.h1StartOnField = [...h1On];
+    state.h1StartBench   = [...h1Bench];
+
+    if(fbr) buildFullBenchHalf(1, h1On, h1Bench, state.duration);
+    else    buildIndividualHalf(1, h1On, h1Bench, state.duration);
+  } else {
+    // Everyone fits — no subs needed
+    state.h1StartOnField = h1Pool.slice(0, fieldSlots);
+    state.h1StartBench   = [];
+  }
+
+  // ── HALF 2 ──
+  // Sort h2Pool by H1 field time ascending — least time starts on field in H2.
+  // GK1 is in h2Pool (plays outfield in H2). They had the full H1 in goal,
+  // so credit them with full H1 time — they'll naturally sort to bench priority.
+  if(h2BenchSize > 0) {
+    const h1Secs = {};
+    h2Pool.forEach(id => h1Secs[id] = 0);
+
+    // Credit GK1 with full H1 time (they were in goal the whole half)
+    if(gk1 && h2Pool.includes(gk1)) h1Secs[gk1] = state.duration * 60;
+
+    // Reconstruct outfield H1 field time from rotation plan
+    let h1OnField = [...state.h1StartOnField];
+    const h1Rots = state.rotation
+      .filter(r => r.half===1 && !r.isGkSwap)
+      .sort((a,b) => a.secMark - b.secMark);
+    let rotPtr = 0;
+    for(let m = 0; m < state.duration; m++) {
+      if(rotPtr < h1Rots.length && m*60 >= h1Rots[rotPtr].secMark) {
+        const rot = h1Rots[rotPtr];
+        rot.offIds.forEach((id,i) => {
+          const idx = h1OnField.indexOf(id);
+          if(idx >= 0) h1OnField[idx] = rot.onIds[i];
+        });
+        rotPtr++;
+      }
+      h1OnField.forEach(id => { if(h1Secs[id] !== undefined) h1Secs[id] += 60; });
+    }
+
+    // Sort h2Pool ascending by H1 time — least time on field starts H2 on field
+    // GK1 has the most time so will naturally sort to bench
+    const h2Sorted = [...h2Pool].sort((a,b) => (h1Secs[a]||0) - (h1Secs[b]||0));
+    const h2On    = h2Sorted.slice(0, fieldSlots);
+    const h2Bench = h2Sorted.slice(fieldSlots);
+
+    state.h2StartOnField = [...h2On];
+    state.h2StartBench   = [...h2Bench];
+
+    if(fbr) buildFullBenchHalf(2, h2On, h2Bench, state.duration);
+    else    buildIndividualHalf(2, h2On, h2Bench, state.duration);
+  } else {
+    state.h2StartOnField = h2Pool.slice(0, fieldSlots);
+    state.h2StartBench   = [];
+  }
+
+  saveData();
+  if(!silent) renderRotationPlan();
+}
+
+// ══════════════════════════════════════════════════════
+// RENDER ROTATION PLAN
+// ══════════════════════════════════════════════════════
+function renderRotationPlan() {
+  const el=document.getElementById('rotationContent');
+  const actEl=document.getElementById('rotationActions');
+  if(!el) return;
+
+  const named=state.players.filter(p=>p.name).length;
+  if(!named){
+    el.innerHTML='<div class="empty-plan">Save your squad first, then generate a rotation plan.</div>';
+    if(actEl) actEl.style.display='none';
+    return;
+  }
+  if(actEl) actEl.style.display='block';
+
+  const gk1=state.gk1Id, gk2=state.gk2Id;
+  const gkIds=[gk1,gk2].filter(Boolean);
+  // H1 pool: everyone except GK1 (GK2 can rotate in H1)
+  // H2 pool: everyone except GK2 (GK1 can rotate in H2)
+  const h1Pool=state.players.filter(p=>p.name&&p.id!==gk1);
+  const h2Pool=state.players.filter(p=>p.name&&p.id!==gk2);
+  const fieldSlots=state.teamSize-1;
+  const h1Slots=state.rotation.filter(r=>r.half===1&&!r.isGkSwap);
+  const h2Slots=state.rotation.filter(r=>r.half===2&&!r.isGkSwap);
+
+  let html='';
+
+  // ── FIRST HALF ──
+  html+=`<div class="plan-section"><div class="plan-section-title">1st Half — Starting</div>`;
+
+  // GK
+  if(state.gk1Id)
+    html+=`<div class="gk-plan-row"><span class="gk-plan-icon">🧤</span>
+      <span class="gk-plan-info">GK: <strong>${pName(state.gk1Id)}</strong> — in goal all 1st half${state.gk2Id&&state.gk2Id!==state.gk1Id?` · <strong>${pName(state.gk2Id)}</strong> plays outfield`:''}</span>
+      <button class="rot-slot-edit" onclick="openGkModal(1)">✎</button></div>`;
+
+  // Show who is off at start — using per-half pool
+  const h1StartOn=getH1StartingOutfield();
+  const h1StartBench=h1Pool.filter(p=>!h1StartOn.includes(p.id));
+  html += renderBenchSection(1, h1Pool, h1StartBench);
+
+  if(!h1Slots.length)
+    html+=`<div style="font-size:12px;color:var(--text-muted);padding:4px 0 8px">No outfield rotations — full squad fits on field.</div>`;
+
+  h1Slots.forEach((slot,i)=>{
+    html+=renderSlotCard(slot,i,1);
+  });
+  html+=`</div>`;
+
+  // ── HALF TIME ──
+  if(state.gk1Id&&state.gk2Id&&state.gk1Id!==state.gk2Id){
+    html+=`<div class="plan-section"><div class="plan-section-title">Half Time</div>
+      <div class="rotation-slot" style="border-color:rgba(245,158,11,0.4)">
+        <div class="rot-slot-header">
+          <div class="rot-slot-min">HT <span>GK Swap</span></div>
+          <button class="rot-slot-edit" onclick="openGkModal(2)">✎</button>
+        </div>
+        <div class="rot-swap-grid">
+          <div class="rot-col-off"><div class="rot-col-label">GK Off</div>
+            <div class="player-chip off">🧤 ${pName(state.gk1Id)}</div></div>
+          <div class="rot-arrow">→</div>
+          <div class="rot-col-on"><div class="rot-col-label">GK On</div>
+            <div class="player-chip on">🧤 ${pName(state.gk2Id)}</div></div>
+        </div>
+      </div>
+    </div>`;
+  } else if(state.gk1Id&&state.gk1Id===state.gk2Id){
+    html+=`<div class="plan-section"><div class="plan-section-title">Half Time</div>
+      <div class="gk-plan-row"><span class="gk-plan-icon">🧤</span>
+        <span class="gk-plan-info">GK: <strong>${pName(state.gk1Id)}</strong> continues both halves</span>
+        <button class="rot-slot-edit" onclick="openGkModal(2)">✎</button>
+      </div></div>`;
+  }
+
+  // ── SECOND HALF ──
+  html+=`<div class="plan-section"><div class="plan-section-title">2nd Half — Starting</div>`;
+  if(state.gk2Id)
+    html+=`<div class="gk-plan-row"><span class="gk-plan-icon">🧤</span>
+      <span class="gk-plan-info">GK: <strong>${pName(state.gk2Id)}</strong> — in goal all 2nd half${state.gk1Id&&state.gk1Id!==state.gk2Id?` · <strong>${pName(state.gk1Id)}</strong> plays outfield`:''}</span>
+      <button class="rot-slot-edit" onclick="openGkModal(2)">✎</button></div>`;
+
+  // H2 starting bench — using H2 pool (excludes GK2 only)
+  const h2StartOn=getH2StartingOutfield();
+  const h2StartBench=h2Pool.filter(p=>!h2StartOn.includes(p.id));
+  html += renderBenchSection(2, h2Pool, h2StartBench);
+
+  if(!h2Slots.length)
+    html+=`<div style="font-size:12px;color:var(--text-muted);padding:4px 0 8px">No outfield rotations needed.</div>`;
+
+  h2Slots.forEach((slot,i)=>{
+    html+=renderSlotCard(slot,i,2);
+  });
+  html+=`</div>`;
+
+  el.innerHTML=html;
+}
+
+// ── Bench section renderer (editable) ──
+function renderBenchSection(half, pool, benchPlayers) {
+  const fieldSlots = state.teamSize - 1;
+  const benchCount = pool.length - fieldSlots;
+  const isEditing = benchEditing === half;
+
+  if(benchCount <= 0) return ''; // everyone fits, no bench
+
+  if(isEditing) {
+    // Checkbox picker — user selects exactly benchCount players to sit out
+    const currentBenchIds = benchPlayers.map(p=>p.id);
+    return `<div class="bench-editor">
+      <div class="bench-editor-title">🪑 Edit Starting Bench — ${half===1?'1st':'2nd'} Half</div>
+      <div class="bench-editor-hint">Select exactly <strong>${benchCount}</strong> player${benchCount>1?'s':''} to start on the bench. The rest start on the field.</div>
+      <div class="bench-editor-grid" id="benchPickerGrid${half}">
+        ${pool.map(p=>{
+          const sel = currentBenchIds.includes(p.id);
+          return `<div class="bench-picker-chip${sel?' selected':''}" onclick="toggleBenchPick(${half},'${p.id}')" id="bchip-${half}-${p.id}">
+            <div class="chip-check">${sel?'✓':''}</div>
+            <div class="chip-name">${esc(p.name||'Player')}</div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div id="benchPickerError${half}" style="font-size:11px;color:#f87171;margin-bottom:8px;display:none;">Select exactly ${benchCount} player${benchCount>1?'s':''}.</div>
+      <div class="bench-editor-actions">
+        <button class="bench-confirm-btn" onclick="confirmBenchEdit(${half},${benchCount})">✓ Confirm &amp; Regenerate</button>
+        <button class="bench-cancel-btn" onclick="cancelBenchEdit()">Cancel</button>
+      </div>
+    </div>`;
+  }
+
+  // Normal display with edit button
+  return `<div style="margin-bottom:10px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <div class="rot-col-label" style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:1.5px;">
+        🪑 Off at kick-off ${state.fullBenchRotation?'· full bench rotates together':''}
+      </div>
+      <button class="rot-slot-edit" onclick="openBenchEditor(${half})" title="Edit starting bench" style="flex-shrink:0;">✎</button>
+    </div>
+    <div class="bench-list">
+      ${benchPlayers.length
+        ? benchPlayers.map(p=>`<span class="bench-chip">${p.name||'Player'}</span>`).join('')
+        : `<span style="font-size:12px;color:var(--text-muted)">All players start on field</span>`}
+    </div>
+  </div>`;
+}
+
+function openBenchEditor(half) {
+  benchEditing = half;
+  renderRotationPlan();
+}
+
+function cancelBenchEdit() {
+  benchEditing = null;
+  renderRotationPlan();
+}
+
+function toggleBenchPick(half, playerId) {
+  const chip = document.getElementById(`bchip-${half}-${playerId}`);
+  if(!chip) return;
+  chip.classList.toggle('selected');
+  const check = chip.querySelector('.chip-check');
+  if(check) check.textContent = chip.classList.contains('selected') ? '✓' : '';
+  // Hide error if shown
+  const errEl = document.getElementById(`benchPickerError${half}`);
+  if(errEl) errEl.style.display = 'none';
+}
+
+function confirmBenchEdit(half, requiredCount) {
+  // Collect selected player IDs
+  const grid = document.getElementById(`benchPickerGrid${half}`);
+  if(!grid) return;
+  const selected = Array.from(grid.querySelectorAll('.bench-picker-chip.selected'))
+    .map(el => el.id.replace(`bchip-${half}-`, ''));
+
+  if(selected.length !== requiredCount) {
+    const errEl = document.getElementById(`benchPickerError${half}`);
+    if(errEl) { errEl.style.display = 'block'; errEl.textContent = `Please select exactly ${requiredCount} player${requiredCount>1?'s':''} for the bench.`; }
+    return;
+  }
+
+  const gk1=state.gk1Id, gk2=state.gk2Id;
+  // H1 pool excludes GK1 only (GK2 can rotate in H1)
+  // H2 pool excludes GK2 only (GK1 can rotate in H2)
+  const h1Pool = state.players.filter(p=>p.name&&p.id!==gk1).map(p=>p.id);
+  const h2Pool = state.players.filter(p=>p.name&&p.id!==gk2).map(p=>p.id);
+  const fieldSlots = state.teamSize - 1;
+
+  // Apply the manual override to the edited half
+  const newBench   = selected;
+  const pool = half===1 ? h1Pool : h2Pool;
+  const newOnField = pool.filter(id=>!newBench.includes(id));
+
+  if(half===1){
+    state.h1StartBench   = newBench;
+    state.h1StartOnField = newOnField;
+
+    // Rebalance H2: players who sat out H1 get priority to start H2 on field
+    const h2On = [...newBench.filter(id => h2Pool.includes(id)).slice(0, fieldSlots)];
+    const rest = h2Pool.filter(id => !h2On.includes(id));
+    let ri = 0;
+    while(h2On.length < fieldSlots && ri < rest.length) h2On.push(rest[ri++]);
+    const h2Bench = h2Pool.filter(id => !h2On.includes(id));
+    state.h2StartOnField = h2On;
+    state.h2StartBench   = h2Bench;
+  } else {
+    state.h2StartBench   = newBench;
+    state.h2StartOnField = newOnField;
+    // H1 is not touched — its manual or auto assignment stands
+  }
+
+  // Remove all non-GK rotation slots and rebuild both halves from updated starting positions
+  state.rotation = state.rotation.filter(r => r.isGkSwap);
+  regenerateHalfRotations(1, state.h1StartOnField, state.h1StartBench);
+  regenerateHalfRotations(2, state.h2StartOnField, state.h2StartBench);
+
+  benchEditing = null;
+  saveData();
+  renderRotationPlan();
+}
+
+function regenerateHalfRotations(half, startOn, startBench) {
+  state.rotation = state.rotation.filter(r => r.half !== half || r.isGkSwap);
+  if(startBench.length === 0) return;
+
+  const rph = state.rotsPerHalf;
+  const fbr = state.fullBenchRotation;
+  const dur = state.duration;
+  const fieldSlots = state.teamSize - 1;
+  const maxSwap = Math.min(startBench.length, fieldSlots);
+
+  if(fbr) {
+    let onQueue  = [...startOn];
+    let offQueue = [...startBench];
+    for(let r=0; r<rph; r++){
+      const min = Math.round((dur * 60 * (r+1)) / (rph+1));
+      if(min <= 0 || min >= dur*60 || offQueue.length === 0) break;
+      const actualSwap = Math.min(maxSwap, offQueue.length, onQueue.length);
+      const goingOff = onQueue.slice(0, actualSwap);
+      const goingOn  = offQueue.slice(0, actualSwap);
+      if(!goingOff.length || !goingOn.length) continue;
+      state.rotation.push({half, rotIndex:r, secMark:min, offIds:[...goingOff], onIds:[...goingOn], done:false, isGkSwap:false});
+      onQueue  = onQueue.filter(id=>!goingOff.includes(id)); onQueue.push(...goingOn);
+      offQueue = offQueue.filter(id=>!goingOn.includes(id)); offQueue.push(...goingOff);
+    }
+  } else {
+    let currentOn  = [...startOn];
+    let currentOff = [...startBench];
+    for(let r=0; r<rph; r++){
+      const min = Math.round((dur * 60 * (r+1)) / (rph+1));
+      if(min <= 0 || min >= dur*60 || currentOff.length === 0) break;
+      const remaining = rph - r;
+      const swapN = Math.min(Math.max(1, Math.ceil(currentOff.length / remaining)), fieldSlots, currentOn.length);
+      const goingOff = currentOn.slice(0, swapN);
+      const goingOn  = currentOff.slice(0, swapN);
+      state.rotation.push({half, rotIndex:r, secMark:min, offIds:[...goingOff], onIds:[...goingOn], done:false, isGkSwap:false});
+      currentOn  = currentOn.filter(id=>!goingOff.includes(id)); currentOn.push(...goingOn);
+      currentOff = currentOff.filter(id=>!goingOn.includes(id)); currentOff.push(...goingOff);
+    }
+  }
+}
+
+function renderSlotCard(slot, i, half) {
+  const rem=half===1?state.half1Remaining:state.half2Remaining;
+  const elapsedS=state.duration*60-rem;
+  const isNext=!slot.done&&rem>0&&slot.secMark>elapsedS&&
+    !state.rotation.filter(r=>r.half===half&&!r.isGkSwap).slice(0,i).find(s=>!s.done&&s.secMark>elapsedS);
+  const n=slot.offIds.length;
+  const fbrLabel=state.fullBenchRotation
+    ?`<span style="font-size:10px;background:rgba(42,138,66,0.25);color:var(--grass-light);border:1px solid rgba(42,138,66,0.3);border-radius:20px;padding:2px 8px;margin-left:6px;font-family:'Barlow Condensed',sans-serif;letter-spacing:1px;text-transform:uppercase;">Full Bench</span>`
+    :'';
+  // Show rotation time as MM:SS
+  const minSecs=fmtTime(slot.secMark);
+
+  return `<div class="rotation-slot ${isNext?'upcoming':''} ${slot.done?'done':''}">
+    <div class="rot-slot-header">
+      <div class="rot-slot-min">${minSecs} <span>${n} player${n>1?'s':''} swap${fbrLabel}</span></div>
+      <button class="rot-slot-edit" onclick="openEditModal(${half},${i})">✎</button>
+    </div>
+    <div class="rot-swap-grid">
+      <div class="rot-col-off">
+        <div class="rot-col-label">Coming Off</div>
+        ${slot.offIds.map(id=>`<div class="player-chip off">↑ ${pName(id)}</div>`).join('')}
+      </div>
+      <div class="rot-arrow">→</div>
+      <div class="rot-col-on">
+        <div class="rot-col-label">Going On</div>
+        ${slot.onIds.map(id=>`<div class="player-chip on">↓ ${pName(id)}</div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function getH1StartingOutfield() {
+  if(state.h1StartOnField && state.h1StartOnField.length) return state.h1StartOnField;
+  // Fallback: everyone except GK1
+  const pool=state.players.filter(p=>p.id!==state.gk1Id).map(p=>p.id);
+  return pool.slice(0, state.teamSize-1);
+}
+
+function getH2StartingOutfield() {
+  if(state.h2StartOnField && state.h2StartOnField.length) return state.h2StartOnField;
+  // Fallback: everyone except GK2
+  const pool=state.players.filter(p=>p.id!==state.gk2Id).map(p=>p.id);
+  return pool.slice(0, state.teamSize-1);
+}
+
+// ══════════════════════════════════════════════════════
+// GAME TIME TAB
+// ══════════════════════════════════════════════════════
+function renderGameTime() {
+  const el=document.getElementById('gameTimeContent');
+  if(!el) return;
+
+  const phase=state.phase;
+
+  if(phase==='pre'){
+    el.innerHTML=`<div class="gt-no-match">
+      <div class="big-icon">⚽</div>
+      <p style="margin-bottom:20px">Squad is set — ready to kick off!</p>
+      <button class="confirm-btn" style="animation:none;max-width:320px;margin:0 auto;display:block;" onclick="startHalf()">▶ Kick Off</button>
+    </div>`; return;
+  }
+
+  if(phase==='done'){
+    el.innerHTML = buildMatchSummaryHTML();
+    return;
+  }
+
+  const isH1=phase.startsWith('half1');
+  const half=isH1?1:2;
+  const remaining=isH1?state.half1Remaining:state.half2Remaining;
+  const elapsed=state.duration*60-remaining;
+  const elapsedMins=Math.floor(elapsed/60);
+  const isPaused=phase.endsWith('_paused');
+  const isHalfDone=phase==='half1_done';
+
+  // ── Half-time waiting screen ──
+  if(isHalfDone){
+    const gk1=state.gk1Id,gk2=state.gk2Id;
+    const gkSwap=gk1&&gk2&&gk1!==gk2;
+
+    // Who starts H2 on field vs bench (using stored h2 starting positions)
+    const gkIds=[gk1,gk2].filter(Boolean);
+    const h2OnIds  = state.h2StartOnField||[];
+    const h2BenchIds = state.h2StartBench||[];
+    // Full H2 on-field list includes GK2
+    const h2FullOnIds = gk2 ? [gk2, ...h2OnIds] : h2OnIds;
+
+    const h2OnChips = h2FullOnIds
+      .map(id=>state.players.find(p=>p.id===id))
+      .filter(Boolean)
+      .map(p=>{
+        const isGk = p.id===gk2;
+        return `<span class="gt-bench-chip" style="background:rgba(74,222,128,0.12);border-color:rgba(74,222,128,0.3);color:#86efac;">${isGk?'🧤 ':''}${p.name}</span>`;
+      }).join('');
+
+    const h2BenchChips = h2BenchIds
+      .map(id=>state.players.find(p=>p.id===id))
+      .filter(Boolean)
+      .map(p=>`<span class="gt-bench-chip">${p.name}</span>`)
+      .join('');
+
+    el.innerHTML=`<div class="gt-halftime">
+      <h3>⏸ Half Time</h3>
+      <p style="margin-bottom:14px">1st half complete — prepare for the 2nd half</p>
+      ${gkSwap?`<div style="margin-bottom:14px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <div class="player-chip gk" style="margin:0">🧤 ${pName(gk1)} OFF</div>
+        <div style="color:var(--text-muted);line-height:32px;padding:0 4px">→</div>
+        <div class="player-chip gk" style="margin:0">🧤 ${pName(gk2)} ON</div>
+      </div>`:''}
+      ${h2FullOnIds.length?`
+      <div style="text-align:left;margin-bottom:12px;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#86efac;margin-bottom:7px;">▶ Starting 2nd Half On Field</div>
+        <div class="gt-bench-chips" style="flex-wrap:wrap;">${h2OnChips}</div>
+      </div>`:''}
+      ${h2BenchIds.length?`
+      <div style="text-align:left;margin-bottom:14px;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted);margin-bottom:7px;">🪑 Starting 2nd Half on Bench</div>
+        <div class="gt-bench-chips" style="flex-wrap:wrap;">${h2BenchChips}</div>
+      </div>`:''}
+      <button class="confirm-btn" style="animation:none" onclick="startSecondHalf()">▶▶ Start 2nd Half</button>
+    </div>`;
+    return;
+  }
+
+  let html='';
+
+  // ── Goals card — always shown when match is active ──
+  html += renderGoalsCard();
+
+  // ── Timer block — always first ──
+  const urgent=remaining<=120;
+  const opponentLabel = state.opponent ? `<div class="gt-sub-label" style="color:var(--amber-light);margin-bottom:2px;">vs ${esc(state.opponent)}</div>` : '';
+  html+=`<div class="card" style="margin-bottom:12px">
+    <div class="gt-timer-block">
+      ${opponentLabel}
+      <div class="gt-half-label">${isH1?'1st Half':'2nd Half'}${isPaused?' · PAUSED':''}</div>
+      <div class="gt-main-timer${urgent?' urgent':''}">${fmtTime(remaining)}</div>
+      <div class="gt-sub-label">${Math.floor(elapsed/60)}' elapsed</div>
+      <div class="gt-progress-wrap"><div class="gt-progress-bar" style="width:${(elapsed/(state.duration*60)*100).toFixed(1)}%"></div></div>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      ${isPaused
+        ?`<button class="ctrl-btn btn-resume" onclick="resumeTimer()">▶ Resume</button>`
+        :`<button class="ctrl-btn btn-pause" onclick="pauseTimer()">⏸ Pause</button>`}
+    </div>
+  </div>`;
+
+  // ── Active rotation due now (overdue and not confirmed) — show before countdown ──
+  const dueSlots=getDueSlots(half,elapsed);
+  dueSlots.forEach(slot=>{
+    html+=`<div class="chime-alert"><span style="font-size:18px">🔔</span><span class="chime-alert-text">Rotation due — buzzing until confirmed</span></div>
+    <div class="gt-interchange active" id="slot-card-${slot.rotIndex}">
+      <div class="gt-interchange-title">🔄 Rotation Now — ${fmtTime(slot.secMark)}</div>
+      <div class="gt-swap-grid">
+        <div class="gt-col-off">
+          <div class="gt-col-label">Coming Off</div>
+          ${slot.offIds.map(id=>`<div class="gt-player-chip off">${pName(id)}</div>`).join('')}
+        </div>
+        <div class="gt-arrow">→</div>
+        <div class="gt-col-on">
+          <div class="gt-col-label">Going On</div>
+          ${slot.onIds.map(id=>`<div class="gt-player-chip on">${pName(id)}</div>`).join('')}
+        </div>
+      </div>
+      <button class="confirm-btn" onclick="confirmRotation(${half},${slot.rotIndex})">✓ Interchange Done</button>
+    </div>`;
+  });
+
+  // ── Get next rotation countdown ──
+  const nextSlot=getNextSlot(half);
+  const secsToNext=nextSlot?Math.max(0,nextSlot.secMark-elapsed):null;
+
+  if(secsToNext!==null){
+    const totalInterval=nextSlot.secMark-(prevSlotEnd(half,nextSlot.rotIndex));
+    const done=totalInterval-secsToNext;
+    const pct=Math.min(1,done/Math.max(1,totalInterval));
+    const circleLen=283;
+    const dashOffset=circleLen*(1-pct);
+    const ringUrgent=secsToNext<=60;
+
+    html+=`<div class="card" style="margin-bottom:12px;text-align:center">
+      <div class="card-title">Next Rotation</div>
+      <div class="gt-sub-countdown">
+        <div class="gt-countdown-ring">
+          <svg viewBox="0 0 100 100" width="100" height="100">
+            <circle class="ring-bg" cx="50" cy="50" r="45"/>
+            <circle class="ring-fill${ringUrgent?' urgent':''}" cx="50" cy="50" r="45"
+              style="stroke-dashoffset:${dashOffset.toFixed(1)}"/>
+          </svg>
+          <div class="gt-countdown-num">
+            <div class="mins">${fmtTime(secsToNext)}</div>
+            <div class="secs-label">to sub</div>
+          </div>
+        </div>
+        <div class="gt-sub-next-label">at ${fmtTime(nextSlot.secMark)} · ${nextSlot.offIds.length} player${nextSlot.offIds.length>1?'s':''} rotating</div>
+      </div>
+      <div class="gt-swap-grid" style="margin-top:10px;text-align:left">
+        <div class="gt-col-off">
+          <div class="gt-col-label">Leaving Field</div>
+          ${nextSlot.offIds.map(id=>`<div class="gt-player-chip off">${pName(id)}</div>`).join('')}
+        </div>
+        <div class="gt-arrow">→</div>
+        <div class="gt-col-on">
+          <div class="gt-col-label">Coming On</div>
+          ${nextSlot.onIds.map(id=>`<div class="gt-player-chip on">${pName(id)}</div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+  } else if(!nextSlot&&!dueSlots.length){
+    html+=`<div class="card" style="margin-bottom:12px;text-align:center;padding:16px">
+      <div style="font-size:13px;color:var(--text-muted)">✓ All rotations complete this half</div>
+    </div>`;
+  }
+
+  el.innerHTML=html;
+}
+
+function getNextSlot(half) {
+  const remaining = half===1 ? state.half1Remaining : state.half2Remaining;
+  const elapsedSecs = state.duration*60 - remaining;
+  return state.rotation
+    .filter(r=>r.half===half&&!r.isGkSwap&&!r.done&&r.secMark>elapsedSecs)
+    .sort((a,b)=>a.secMark-b.secMark)[0]||null;
+}
+
+function getDueSlots(half, elapsedSecs) {
+  return state.rotation
+    .filter(r=>r.half===half&&!r.isGkSwap&&!r.done&&r.secMark<=elapsedSecs)
+    .sort((a,b)=>a.secMark-b.secMark);
+}
+
+function prevSlotEnd(half, rotIndex) {
+  const slots=state.rotation.filter(r=>r.half===half&&!r.isGkSwap).sort((a,b)=>a.secMark-b.secMark);
+  const i=slots.findIndex(s=>s.rotIndex===rotIndex);
+  if(i<=0) return 0;
+  return slots[i-1].secMark;
+}
+
+function confirmRotation(half, rotIndex) {
+  const slot=state.rotation.find(r=>r.half===half&&r.rotIndex===rotIndex&&!r.isGkSwap);
+  if(!slot) return;
+  slot.done=true;
+
+  // Apply swap: for each offId, replace with the corresponding onId in state.onField
+  // This guarantees field count stays exactly teamSize regardless of any drift
+  const offIds = slot.offIds;
+  const onIds  = slot.onIds;
+  const swapCount = Math.min(offIds.length, onIds.length);
+
+  for(let i=0; i<swapCount; i++) {
+    const offId = offIds[i];
+    const onId  = onIds[i];
+    const idx = state.onField.indexOf(offId);
+    if(idx >= 0) {
+      // Direct replace — field count stays exactly the same
+      state.onField[idx] = onId;
+    } else {
+      // offId not on field (already swapped somehow) — only add onId if not already there
+      // and field isn't already full
+      if(!state.onField.includes(onId) && state.onField.length < state.teamSize) {
+        state.onField.push(onId);
+      }
+    }
+  }
+
+  // Safety clamp — never exceed teamSize
+  if(state.onField.length > state.teamSize) {
+    state.onField = state.onField.slice(0, state.teamSize);
+  }
+
+  // Check if any rotations still pending — if none, stop chime
+  const elapsedSecs = state.duration*60-(half===1?state.half1Remaining:state.half2Remaining);
+  const stillDue = state.rotation.some(r=>r.half===half&&!r.isGkSwap&&!r.done&&r.secMark<=elapsedSecs);
+  if(!stillDue) stopChime();
+  saveData();
+  renderGameTime();
+  if(document.getElementById('tab-rotation').classList.contains('active')) renderRotationPlan();
+}
+
+// ══════════════════════════════════════════════════════
+// MODALS
+// ══════════════════════════════════════════════════════
+function openEditModal(half, rotIndex) {
+  editingSlot={half,rotIndex};
+  const slot=state.rotation.find(r=>r.half===half&&r.rotIndex===rotIndex&&!r.isGkSwap);
+  if(!slot) return;
+  document.getElementById('modalTitle').textContent=`Edit Rotation — ${half===1?'1st':'2nd'} Half ${fmtTime(slot.secMark)}`;
+
+  const gkIds=[state.gk1Id,state.gk2Id].filter(Boolean);
+  const eligible=state.players.filter(p=>p.name&&!gkIds.includes(p.id));
+
+  let html='';
+  slot.offIds.forEach((id,i)=>{
+    html+=`<div class="modal-field">
+      <label>Player ${i+1} Coming OFF</label>
+      <select id="modalOff${i}">${eligible.map(p=>`<option value="${p.id}"${p.id===id?' selected':''}>${esc(p.name)}</option>`).join('')}</select>
+    </div>`;
+  });
+  slot.onIds.forEach((id,i)=>{
+    html+=`<div class="modal-field">
+      <label>Player ${i+1} Going ON</label>
+      <select id="modalOn${i}">${eligible.map(p=>`<option value="${p.id}"${p.id===id?' selected':''}>${esc(p.name)}</option>`).join('')}</select>
+    </div>`;
+  });
+  document.getElementById('modalPlayerFields').innerHTML=html;
+  document.getElementById('editModal').classList.add('show');
+}
+
+function saveModalEdit() {
+  if(!editingSlot) return;
+  const {half,rotIndex}=editingSlot;
+  const slot=state.rotation.find(r=>r.half===half&&r.rotIndex===rotIndex&&!r.isGkSwap);
+  if(!slot) return;
+
+  const newOff=slot.offIds.map((_,i)=>document.getElementById('modalOff'+i).value);
+  const newOn=slot.onIds.map((_,i)=>document.getElementById('modalOn'+i).value);
+  slot.offIds=newOff;
+  slot.onIds=newOn;
+  saveData();
+  closeModal('editModal');
+  renderRotationPlan();
+}
+
+function openGkModal(half) {
+  editingGkHalf=half;
+  document.getElementById('gkModalTitle').textContent=`Change ${half===1?'1st':'2nd'} Half GK`;
+  document.getElementById('gkModalLabel').textContent=`${half===1?'1st':'2nd'} Half Goalkeeper`;
+  const cur=half===1?state.gk1Id:state.gk2Id;
+  document.getElementById('gkModalSelect').innerHTML=state.players
+    .filter(p=>p.name)
+    .map(p=>`<option value="${p.id}"${p.id===cur?' selected':''}>${esc(p.name)}</option>`).join('');
+  document.getElementById('gkModal').classList.add('show');
+}
+
+function saveGkEdit() {
+  const newId=document.getElementById('gkModalSelect').value;
+  if(editingGkHalf===1) state.gk1Id=newId;
+  else state.gk2Id=newId;
+  // Rebuild GK swap
+  state.rotation=state.rotation.filter(r=>!r.isGkSwap);
+  if(state.gk1Id&&state.gk2Id&&state.gk1Id!==state.gk2Id)
+    state.rotation.push({half:1,rotIndex:999,secMark:state.duration*60,
+      offIds:[state.gk1Id],onIds:[state.gk2Id],done:false,isGkSwap:true});
+  saveData();
+  closeModal('gkModal');
+  renderRotationPlan();
+  populateGkSelects();
+  updateGkBadges();
+  render();
+}
+
+function closeModal(id,e) {
+  if(!e||e.target===document.getElementById(id)){
+    document.getElementById(id).classList.remove('show');
+    editingSlot=null; editingGkHalf=null;
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// TIME TRACKER
+// ══════════════════════════════════════════════════════
+function renderTimeTracker() {
+  const el=document.getElementById('timeTrackerContent');
+  if(!el) return;
+  if(!state.players.filter(p=>p.name).length){
+    el.innerHTML='<div class="empty-plan">Save your squad to enable time tracking.</div>'; return;
+  }
+  const totalSecs=state.duration*2*60;
+  const gkIds=[state.gk1Id,state.gk2Id].filter(Boolean);
+  let html='<div class="time-tracker">';
+  state.players.filter(p=>p.name).forEach(p=>{
+    const secs=state.fieldTime[p.id]||0;
+    const pct=Math.min(100,(secs/Math.max(1,totalSecs))*100);
+    const isOn=state.onField.includes(p.id);
+    const isGk=gkIds.includes(p.id);
+    const gkLabel=p.id===state.gk1Id&&p.id===state.gk2Id?'🧤 ':p.id===state.gk1Id?'🧤¹ ':p.id===state.gk2Id?'🧤² ':'';
+    const cls=isGk?'tracker-row is-gk':isOn?'tracker-row on-field':'tracker-row';
+    html+=`<div class="${cls}">
+      <div class="tracker-name">${gkLabel}${p.name}${isOn&&!isGk?' ●':''}</div>
+      <div class="tracker-bar-wrap"><div class="tracker-bar" style="width:${pct}%"></div></div>
+      <div class="tracker-time">${fmtTime(secs)}</div>
+    </div>`;
+  });
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+// ══════════════════════════════════════════════════════
+// TIMER ENGINE
+// ══════════════════════════════════════════════════════
+function startHalf() {
+  if(state.phase!=='pre') return;
+
+  const namedPlayers = state.players.filter(p=>p.name).length;
+  if(namedPlayers === 0) {
+    if(!confirm('No players have been entered yet.\n\nAre you sure you want to start without a squad?\n\nTap Cancel to go back and set up your players first.')) return;
+  }
+
+  state.phase='half1';
+  state.half1KickoffStr=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+
+  // H1: GK1 locked in goal. GK2 is a regular outfield player (can rotate on/off).
+  // onField = GK1 + h1StartOnField (which includes GK2 if they start on field)
+  if(state.gk1Id && state.h1StartOnField && state.h1StartOnField.length) {
+    state.onField = [state.gk1Id, ...state.h1StartOnField].slice(0, state.teamSize);
+  } else if(state.gk1Id) {
+    const others = state.players.filter(p=>p.name&&p.id!==state.gk1Id).map(p=>p.id);
+    state.onField = [state.gk1Id, ...others.slice(0, state.teamSize-1)];
+  } else {
+    state.onField = state.players.filter(p=>p.name).slice(0, state.teamSize).map(p=>p.id);
+  }
+
+  saveData();
+  switchToLiveTab();
+  render();
+  startTicker(); // start AFTER tab is switched and rendered
+}
+
+function switchToLiveTab() {
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-gametime').classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(b=>{
+    const oc = b.getAttribute('onclick')||'';
+    if(oc.includes("'gametime'")) b.classList.add('active');
+  });
+  // Force-render the live tab content immediately
+  renderGameTime();
+}
+
+function pauseTimer() {
+  if(state.phase==='half1'||state.phase==='half2'){
+    stopTicker();
+    state.phase+='_paused';
+  }
+  saveData(); render();
+}
+
+function resumeTimer() {
+  if(state.phase==='half1_paused') state.phase='half1';
+  else if(state.phase==='half2_paused') state.phase='half2';
+  // Reset wall-clock anchor so timestamp calc is correct after pause
+  const half = state.phase==='half1'?1:2;
+  state.tickerStartMs = Date.now();
+  state.tickerStartRemaining = half===1 ? state.half1Remaining : state.half2Remaining;
+  saveData(); startTicker(); render();
+}
+
+function startSecondHalf() {
+  if(state.phase!=='half1_done') return;
+  state.phase='half2';
+  state.half2KickoffStr=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+
+  // H2: GK2 locked in goal. GK1 is a regular outfield player (can rotate on/off).
+  // onField = GK2 + h2StartOnField (which includes GK1 if they start on field)
+  if(state.gk2Id && state.h2StartOnField && state.h2StartOnField.length) {
+    state.onField = [state.gk2Id, ...state.h2StartOnField].slice(0, state.teamSize);
+  } else if(state.gk2Id) {
+    const others = state.players.filter(p=>p.name&&p.id!==state.gk2Id).map(p=>p.id);
+    state.onField = [state.gk2Id, ...others.slice(0, state.teamSize-1)];
+  } else {
+    state.onField = state.players.filter(p=>p.name).slice(0, state.teamSize).map(p=>p.id);
+  }
+
+  state.rotation.filter(r=>r.isGkSwap).forEach(r=>r.done=true);
+  state.rotation.filter(r=>r.half===2&&!r.isGkSwap).forEach(r=>r.done=false);
+  state.tickerStartMs = Date.now();
+  state.tickerStartRemaining = state.half2Remaining;
+  _lastTickSec = -1; // reset tick deduplication for H2
+  saveData(); startTicker(); render();
+}
+
+function buzz(pattern) {
+  if(!state.vibration) return;
+  if(!navigator.vibrate) return;
+  navigator.vibrate(pattern);
+}
+// ── Vibration patterns ──
+const BUZZ_CHIRP     = [200];
+const BUZZ_ROTATION  = [400, 80, 400];
+const BUZZ_HALFTIME  = [600, 100, 600, 100, 600];
+const BUZZ_FULLTIME  = [800, 120, 800, 120, 800, 120, 800];
+
+// ══════════════════════════════════════════════════════
+// AUDIO ENGINE — Web Audio API
+// ══════════════════════════════════════════════════════
+let audioCtx = null;
+
+function getAudioCtx() {
+  if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  // Resume if suspended (browser autoplay policy)
+  if(audioCtx.state==='suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+// Core tone player: freq(Hz), type, startTime, duration(s), volume(0-1), fadeOut
+function playTone(freq, type, startTime, duration, volume=0.6, fadeOut=true) {
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, startTime);
+  gain.gain.setValueAtTime(volume, startTime);
+  if(fadeOut) gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+  else gain.gain.setValueAtTime(volume, startTime + duration - 0.01);
+  osc.start(startTime);
+  osc.stop(startTime + duration);
+}
+
+// ── CHIRP: soft, high tick — 10s warning ──
+// A soft short beep, like a watch alarm pre-alert
+function soundChirp() {
+  if(!state.audio) return;
+  const ctx = getAudioCtx();
+  const t = ctx.currentTime;
+  playTone(1200, 'sine', t, 0.08, 0.25, true);
+}
+
+// ── ROTATION: double beep — firm, attention-grabbing ──
+// Two mid-range beeps, like a referee's short whistle blasts
+function soundRotation() {
+  if(!state.audio) return;
+  const ctx = getAudioCtx();
+  const t = ctx.currentTime;
+  playTone(880, 'square', t,        0.15, 0.5, true);
+  playTone(880, 'square', t + 0.22, 0.15, 0.5, true);
+}
+
+// ── CHIME REPEAT: single assertive beep every 3s while rotation pending ──
+function soundChimeRepeat() {
+  if(!state.audio) return;
+  const ctx = getAudioCtx();
+  const t = ctx.currentTime;
+  playTone(660, 'square', t,        0.12, 0.45, true);
+  playTone(880, 'square', t + 0.18, 0.12, 0.45, true);
+}
+
+// ── HALF TIME: three ascending whistle blasts ──
+// Classic referee half-time whistle feel
+function soundHalftime() {
+  if(!state.audio) return;
+  const ctx = getAudioCtx();
+  const t = ctx.currentTime;
+  // Three long blasts with slight pitch rise
+  playTone(700, 'sawtooth', t,        0.35, 0.55, true);
+  playTone(750, 'sawtooth', t + 0.5,  0.35, 0.55, true);
+  playTone(800, 'sawtooth', t + 1.0,  0.45, 0.6,  true);
+}
+
+// ── FULL TIME: four long blasts — unmistakable end-of-match signal ──
+function soundFulltime() {
+  if(!state.audio) return;
+  const ctx = getAudioCtx();
+  const t = ctx.currentTime;
+  playTone(700, 'sawtooth', t,        0.4,  0.6,  true);
+  playTone(750, 'sawtooth', t + 0.55, 0.4,  0.6,  true);
+  playTone(800, 'sawtooth', t + 1.10, 0.4,  0.6,  true);
+  playTone(850, 'sawtooth', t + 1.65, 0.55, 0.65, true);
+}
+
+function toggleAudio() {
+  state.audio = !state.audio;
+  saveData(); renderAudioToggle();
+  // Play a test chirp when turned on so user knows it works
+  if(state.audio) soundChirp();
+}
+
+function renderAudioToggle() {
+  const toggle=document.getElementById('audioToggle');
+  const knob=document.getElementById('audioKnob');
+  if(!toggle||!knob) return;
+  const on=state.audio;
+  toggle.style.background=on?'var(--grass-light)':'rgba(0,0,0,0.4)';
+  toggle.style.borderColor=on?'var(--grass-light)':'rgba(134,169,140,0.3)';
+  knob.style.left=on?'21px':'1px';
+}
+
+function toggleVibration() {
+  state.vibration = !state.vibration;
+  saveData(); renderVibToggle();
+}
+
+function renderVibToggle() {
+  const toggle=document.getElementById('vibToggle');
+  const knob=document.getElementById('vibKnob');
+  if(!toggle||!knob) return;
+  const on=state.vibration;
+  toggle.style.background=on?'var(--grass-light)':'rgba(0,0,0,0.4)';
+  toggle.style.borderColor=on?'var(--grass-light)':'rgba(134,169,140,0.3)';
+  knob.style.left=on?'21px':'1px';
+}
+
+function startTicker() {
+  stopTicker();
+  _lastTickSec = -1;
+
+  // Store wall-clock anchor for timestamp-based accuracy (survives screen-off)
+  const half = state.phase === 'half1' ? 1 : 2;
+  const startRemaining = half === 1 ? state.half1Remaining : state.half2Remaining;
+  state.tickerStartMs = Date.now();
+  state.tickerStartRemaining = startRemaining;
+  saveData();
+
+  // Track which events we've already fired
+  let buzzedRotations  = new Set(state.rotation.filter(r=>r.done&&!r.isGkSwap).map(r=>`${r.half}-${r.rotIndex}`));
+  let chirpedRotations = new Set();
+
+  // Use plain setInterval — timestamp-based logic means accuracy is maintained
+  // even if the interval drifts or pauses when the screen is off
+  ticker = setInterval(() => { tickStep(buzzedRotations, chirpedRotations); }, 500);
+  // 500ms interval so we catch the exact second more reliably
+}
+
+function stopTicker() {
+  if(ticker) { clearInterval(ticker); ticker = null; }
+}
+
+let _lastTickSec = -1; // deduplicate 500ms interval firing twice per second
+
+function tickStep(buzzedRotations, chirpedRotations) {
+  const ph = state.phase;
+  if(ph !== 'half1' && ph !== 'half2') return;
+
+  const half = ph === 'half1' ? 1 : 2;
+
+  // ── Timestamp-based remaining ──
+  const elapsed = Math.floor((Date.now() - state.tickerStartMs) / 1000);
+  const remaining = Math.max(0, state.tickerStartRemaining - elapsed);
+
+  if(half === 1) state.half1Remaining = remaining;
+  else           state.half2Remaining = remaining;
+
+  // Only act once per whole second
+  if(elapsed === _lastTickSec) { render(); return; }
+  _lastTickSec = elapsed;
+
+  // Tick field time for on-field players (once per second)
+  tickField();
+
+  const elapsedSecs = state.duration*60 - remaining;
+  const elapsedMins = Math.floor(elapsedSecs / 60);
+
+  // 10-second warning chirps
+  state.rotation.filter(r=>r.half===half&&!r.isGkSwap&&!r.done).forEach(r=>{
+    const secsToRot = r.secMark - elapsedSecs;
+    if(secsToRot > 0 && secsToRot <= 10) {
+      const chirpKey=`${half}-${r.rotIndex}-${Math.ceil(secsToRot)}`;
+      if(!chirpedRotations.has(chirpKey)){ buzz(BUZZ_CHIRP); soundChirp(); chirpedRotations.add(chirpKey); }
+    }
+  });
+
+  // Rotation due
+  state.rotation.filter(r=>r.half===half&&!r.isGkSwap&&!r.done&&r.secMark<=elapsedSecs).forEach(r=>{
+    const key=`${half}-${r.rotIndex}`;
+    if(!buzzedRotations.has(key)){ buzz(BUZZ_ROTATION); soundRotation(); buzzedRotations.add(key); startChime(); }
+  });
+
+  // Half/full time
+  if(remaining === 0) {
+    stopTicker();
+    if(half === 1){
+      state.phase='half1_done';
+      buzz(BUZZ_HALFTIME); soundHalftime();
+    } else {
+      state.phase='done';
+      buzz(BUZZ_FULLTIME); soundFulltime();
+      autoSaveGkHistory();
+    }
+    saveData(); render(); return;
+  }
+
+  saveData(); render();
+}
+
+// ── Catch up when screen comes back on ──
+document.addEventListener('visibilitychange', function() {
+  if(document.visibilityState === 'visible') {
+    const ph = state.phase;
+    if(ph !== 'half1' && ph !== 'half2') return;
+    if(!state.tickerStartMs) return;
+
+    // Recalculate remaining from wall clock
+    const half = ph === 'half1' ? 1 : 2;
+    const elapsed = Math.floor((Date.now() - state.tickerStartMs) / 1000);
+    const remaining = Math.max(0, state.tickerStartRemaining - elapsed);
+    if(half === 1) state.half1Remaining = remaining;
+    else           state.half2Remaining = remaining;
+
+    // Fire any rotation events that became due while screen was off
+    const elapsedSecs2 = state.duration*60 - remaining;
+    state.rotation.filter(r=>r.half===half&&!r.isGkSwap&&!r.done&&r.secMark<=elapsedSecs2).forEach(r=>{
+      r.done = false; // will be fired as due immediately
+    });
+
+    // If time ran out while screen was off
+    if(remaining === 0) {
+      stopTicker();
+      if(half === 1){
+        state.phase='half1_done';
+        buzz(BUZZ_HALFTIME); soundHalftime();
+      } else {
+        state.phase='done';
+        buzz(BUZZ_FULLTIME); soundFulltime();
+        autoSaveGkHistory();
+      }
+    }
+    saveData(); render();
+  }
+});
+
+function tickField() {
+  state.onField.forEach(id=>{state.fieldTime[id]=(state.fieldTime[id]||0)+1;});
+}
+
+// ══════════════════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════════════════
+function render() {
+  const dur=state.duration,total=dur*60,phase=state.phase;
+
+  // Duration / Rots display
+  const dd=document.getElementById('durDisplay');if(dd)dd.textContent=dur;
+  const rd=document.getElementById('rotDisplay');if(rd)rd.textContent=state.rotsPerHalf;
+  const sd=document.getElementById('summaryDuration');if(sd)sd.textContent=`${dur} min`;
+  const st=document.getElementById('summaryTotal');if(st)st.textContent=`${dur*2} min`;
+  const sr=document.getElementById('summaryRots');if(sr)sr.textContent=state.rotsPerHalf;
+  const sfbr=document.getElementById('summaryFBR');if(sfbr)sfbr.textContent=state.fullBenchRotation?'Full bench':'Individual';
+  renderVibToggle();
+  renderAudioToggle();
+
+  // Toggle UI
+  const toggle=document.getElementById('fullBenchToggle');
+  const knob=document.getElementById('fullBenchKnob');
+  const explainer=document.getElementById('fullBenchExplainer');
+  if(toggle&&knob){
+    const on=state.fullBenchRotation;
+    toggle.style.background=on?'var(--grass-light)':'rgba(0,0,0,0.4)';
+    toggle.style.borderColor=on?'var(--grass-light)':'rgba(134,169,140,0.3)';
+    knob.style.left=on?'21px':'1px';
+  }
+  if(explainer){
+    const gkIds=[state.gk1Id,state.gk2Id].filter(Boolean);
+    const outfield=state.players.filter(p=>p.name&&!gkIds.includes(p.id));
+    const benchN=Math.max(0,outfield.length-(state.teamSize-1));
+    const interval=state.duration>0?Math.floor(state.duration/(state.rotsPerHalf+1)):0;
+    if(state.fullBenchRotation&&benchN>0){
+      explainer.style.display='block';
+      explainer.textContent=`All ${benchN} bench player${benchN>1?'s':''} rotate on together every ~${interval} min — the same ${benchN} who just came on will sit out next rotation.`;
+    } else if(!state.fullBenchRotation&&benchN>0){
+      explainer.style.display='block';
+      explainer.textContent=`${benchN} bench player${benchN>1?'s are':' is'} spread across ${state.rotsPerHalf} rotation${state.rotsPerHalf>1?'s':''} — players cycle on/off individually.`;
+    } else {
+      explainer.style.display='none';
+    }
+  }
+  document.querySelectorAll('.preset-btn').forEach(b=>b.classList.toggle('active',parseInt(b.textContent)===dur));
+
+  // Half timers
+  const h1t=document.getElementById('half1Time'),h1s=document.getElementById('half1Status'),
+        h1b=document.getElementById('half1Progress'),h1c=document.getElementById('half1Card'),
+        h1g=document.getElementById('half1Gk');
+  if(h1t) h1t.textContent=fmtTime(state.half1Remaining);
+  if(h1b) h1b.style.width=((total-state.half1Remaining)/total*100)+'%';
+  if(h1g) h1g.textContent=state.gk1Id?'🧤 '+pName(state.gk1Id):'';
+  if(h1c){
+    h1c.className='half-card';
+    if(phase==='half1'){h1c.classList.add('active','running');h1s.textContent='In Play';}
+    else if(phase==='half1_paused'){h1c.classList.add('active');h1s.textContent='Paused';}
+    else if(['half1_done','half2','half2_paused','done'].includes(phase)){h1c.classList.add('done');h1s.textContent='Full Time';}
+    else h1s.textContent='Ready';
+  }
+  const h2t=document.getElementById('half2Time'),h2s=document.getElementById('half2Status'),
+        h2b=document.getElementById('half2Progress'),h2c=document.getElementById('half2Card'),
+        h2g=document.getElementById('half2Gk');
+  if(h2t) h2t.textContent=fmtTime(state.half2Remaining);
+  if(h2b) h2b.style.width=((total-state.half2Remaining)/total*100)+'%';
+  if(h2g) h2g.textContent=state.gk2Id?'🧤 '+pName(state.gk2Id):'';
+  if(h2c){
+    h2c.className='half-card';
+    if(phase==='half2'){h2c.classList.add('active','running');h2s.textContent='In Play';}
+    else if(phase==='half2_paused'){h2c.classList.add('active');h2s.textContent='Paused';}
+    else if(phase==='done'){h2c.classList.add('done');h2s.textContent='Full Time';}
+    else h2s.textContent='Waiting';
+  }
+
+  // Buttons
+  ['startBtn','pauseBtn','resumeBtn','nextBtn'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none';});
+  const showBtn=(id)=>{const e=document.getElementById(id);if(e){e.style.display='flex';e.disabled=false;}};
+  if(phase==='pre') showBtn('startBtn');
+  else if(phase==='half1') showBtn('pauseBtn');
+  else if(phase==='half1_paused') showBtn('resumeBtn');
+  else if(phase==='half1_done') showBtn('nextBtn');
+  else if(phase==='half2') showBtn('pauseBtn');
+  else if(phase==='half2_paused') showBtn('resumeBtn');
+
+  // Setup card lock
+  const sc=document.getElementById('setupCard');
+  if(sc){
+    document.querySelectorAll('.dur-btn,.rot-btn').forEach(b=>b.disabled=phase!=='pre');
+    document.querySelectorAll('.preset-btn').forEach(b=>b.disabled=phase!=='pre');
+    sc.style.opacity=phase!=='pre'?'0.6':'1';
+    sc.style.pointerEvents=phase!=='pre'?'none':'';
+  }
+
+  // Full time banner
+  const ft=document.getElementById('fulltimeBanner');if(ft)ft.classList.toggle('show',phase==='done');
+
+  // Summary
+  const statusEl=document.getElementById('summaryStatus');
+  if(statusEl){
+    const map={pre:'<span class="badge">Pre-match</span>',half1:'<span class="badge orange">1st Half ▶</span>',
+      half1_paused:'<span class="badge orange">1st Half ⏸</span>',half1_done:'<span class="badge">Half Time</span>',
+      half2:'<span class="badge orange">2nd Half ▶</span>',half2_paused:'<span class="badge orange">2nd Half ⏸</span>',
+      done:'<span class="badge purple">Full Time ✓</span>'};
+    statusEl.innerHTML=map[phase]||'';
+  }
+  const h1r=document.getElementById('half1StartRow');if(h1r&&state.half1KickoffStr){h1r.style.display='';document.getElementById('summaryH1Start').textContent=state.half1KickoffStr;}
+  const h2r=document.getElementById('half2StartRow');if(h2r&&state.half2KickoffStr){h2r.style.display='';document.getElementById('summaryH2Start').textContent=state.half2KickoffStr;}
+  const sqr=document.getElementById('squadInfoRow');
+  if(sqr){const n=state.players.filter(p=>p.name).length;if(n){sqr.style.display='';document.getElementById('summarySquad').textContent=`${n} players · ${state.teamSize}-a-side`;}}
+
+  // Refresh active tabs
+  if(document.getElementById('tab-rotation').classList.contains('active')) renderRotationPlan();
+  if(document.getElementById('tab-gametime').classList.contains('active')) renderGameTime();
+  if(document.getElementById('tab-time').classList.contains('active')) renderTimeTracker();
+  updateTabStates();
+  populateOpponentField();
+}
+
+// ══════════════════════════════════════════════════════
+// GOALS
+// ══════════════════════════════════════════════════════
+let goalIsOpponent = false;
+
+function openGoalModal(isOpponent) {
+  goalIsOpponent = isOpponent;
+  const title = document.getElementById('goalModalTitle');
+  const scorerLabel = document.getElementById('goalScorerLabel');
+  const scorerSel = document.getElementById('goalScorerSelect');
+  const oppField = document.getElementById('goalOpponentNameField');
+  const oppInput = document.getElementById('goalOpponentName');
+  const detailInput = document.getElementById('goalDetail');
+  const timeInput = document.getElementById('goalTimeInput');
+
+  title.textContent = isOpponent ? '🔴 Opponent Goal' : '⚽ Our Goal';
+  document.getElementById('goalOpponentNameField').style.display = isOpponent ? 'block' : 'none';
+  document.getElementById('goalScorerField').style.display = isOpponent ? 'none' : 'block';
+  if(oppInput) oppInput.value = '';
+  if(detailInput) detailInput.value = '';
+
+  // Auto-fill elapsed time
+  const phase = state.phase;
+  let elapsedSecs = 0;
+  if(phase==='half1'||phase==='half1_paused') elapsedSecs = state.duration*60 - state.half1Remaining;
+  else if(phase==='half2'||phase==='half2_paused') elapsedSecs = state.duration*60 + state.duration*60 - state.half2Remaining;
+  else if(phase==='half1_done') elapsedSecs = state.duration*60;
+  timeInput.value = Math.floor(elapsedSecs/60);
+
+  if(!isOpponent) {
+    const onFieldPlayers = state.players.filter(p=>p.name&&state.onField.includes(p.id));
+    scorerSel.innerHTML = onFieldPlayers.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
+    scorerSel.style.display = 'block';
+  } else {
+    scorerSel.innerHTML = '<option value="">— unknown —</option>';
+    scorerSel.style.display = 'block';
+  }
+  document.getElementById('goalModal').classList.add('show');
+}
+
+function saveGoal() {
+  const timeVal = parseInt(document.getElementById('goalTimeInput').value)||0;
+  const detail = document.getElementById('goalDetail').value.trim();
+  const elapsedSecs = timeVal * 60;
+  const phase = state.phase;
+  const half = (phase==='half1'||phase==='half1_paused'||phase==='half1_done') ? 1 : 2;
+
+  if(!state.goals) state.goals=[];
+
+  if(goalIsOpponent) {
+    const oppName = document.getElementById('goalOpponentName').value.trim();
+    state.goals.push({id:uid(), half, elapsedSecs, scorerId:null,
+      scorerName: oppName||'Opponent', isOpponent:true, detail});
+  } else {
+    const scorerId = document.getElementById('goalScorerSelect').value;
+    const scorerName = pName(scorerId);
+    state.goals.push({id:uid(), half, elapsedSecs, scorerId, scorerName, isOpponent:false, detail});
+  }
+  saveData();
+  closeModal('goalModal');
+  if(document.getElementById('tab-gametime').classList.contains('active')) renderGameTime();
+}
+
+function deleteGoal(id) {
+  state.goals = (state.goals||[]).filter(g=>g.id!==id);
+  saveData();
+  if(document.getElementById('tab-gametime').classList.contains('active')) renderGameTime();
+}
+
+function renderGoalsCard() {
+  const goals = state.goals||[];
+  const ourGoals   = goals.filter(g=>!g.isOpponent).length;
+  const theirGoals = goals.filter(g=>g.isOpponent).length;
+  const active = ['half1','half1_paused','half1_done','half2','half2_paused','done'].includes(state.phase);
+  const inPlay = ['half1','half1_paused','half2','half2_paused'].includes(state.phase);
+
+  let html = `<div class="card" style="margin-bottom:12px">
+    <div class="card-title">Match Score</div>
+    <div class="score-display">
+      <div><div class="score-num">${ourGoals}</div><div class="score-label">Us</div></div>
+      <div class="score-sep">—</div>
+      <div><div class="score-num">${theirGoals}</div><div class="score-label">Them</div></div>
+    </div>`;
+
+  if(active) {
+    html+=`<div class="add-goal-btns">
+      <button class="btn-goal-us" onclick="openGoalModal(false)">⚽ + Our Goal</button>
+      <button class="btn-goal-them" onclick="openGoalModal(true)">🔴 + Their Goal</button>
+    </div>`;
+  }
+
+  if(goals.length) {
+    html+=`<div class="goal-list" style="margin-top:12px;">`;
+    [...goals].sort((a,b)=>a.elapsedSecs-b.elapsedSecs).forEach(g=>{
+      const min=Math.floor(g.elapsedSecs/60);
+      html+=`<div class="goal-entry${g.isOpponent?' opponent':''}">
+        <div class="goal-time">${min}'</div>
+        <div class="goal-icon">${g.isOpponent?'🔴':'⚽'}</div>
+        <div class="goal-info">${esc(g.scorerName||'—')}
+          ${g.detail?`<div class="goal-detail">${esc(g.detail)}</div>`:''}
+        </div>
+        <button class="goal-del" onclick="deleteGoal('${g.id}')">✕</button>
+      </div>`;
+    });
+    html+=`</div>`;
+  }
+
+  html+=`</div>`;
+  return html;
+}
+
+// ══════════════════════════════════════════════════════
+// PLAYER RULES
+// ══════════════════════════════════════════════════════
+let editingRuleId = null;
+
+function pNameFromLive(id) {
+  let name = '';
+  document.querySelectorAll('.player-input').forEach(el => {
+    const idx=parseInt(el.dataset.idx);
+    if(state.players[idx]&&state.players[idx].id===id) name=el.value.trim();
+  });
+  return name || pName(id);
+}
+
+function renderRulesList() {
+  const list = document.getElementById('rulesList');
+  if(!list) return;
+  const rules = state.playerRules||[];
+  if(!rules.length) {
+    list.innerHTML='<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">No rules set.</div>';
+    return;
+  }
+  const liveNames = [];
+  document.querySelectorAll('.player-input').forEach(el => {
+    const idx=parseInt(el.dataset.idx);
+    const name=el.value.trim();
+    if(name&&state.players[idx]) liveNames.push({id:state.players[idx].id,name});
+  });
+  const players = liveNames.length ? liveNames : state.players.filter(p=>p.name);
+
+  list.innerHTML = rules.map(r => {
+    const isEditing = editingRuleId === r.id;
+    if(isEditing) {
+      const pOpts = players.map(p=>`<option value="${p.id}" ${p.id===r.playerIds[0]?'selected':''} data-for="p1">${p.name}</option>`).join('');
+      const pOpts2 = players.map(p=>`<option value="${p.id}" ${p.id===r.playerIds[1]?'selected':''} data-for="p2">${p.name}</option>`).join('');
+      return `<div class="rule-row" style="flex-direction:column;align-items:stretch;gap:8px;padding:10px 0;">
+        <select id="editRuleType-${r.id}" style="background:rgba(0,0,0,0.35);border:1px solid var(--amber);color:var(--text-main);padding:7px 10px;border-radius:8px;font-family:Barlow,sans-serif;font-size:13px;width:100%;">
+          <option value="apart" ${r.type==="apart"?"selected":""}>Never off at the same time</option>
+          <option value="together" ${r.type==="together"?"selected":""}>Always rotate off together</option>
+        </select>
+        <select id="editRuleP1-${r.id}" style="background:rgba(0,0,0,0.35);border:1px solid var(--amber);color:var(--text-main);padding:7px 10px;border-radius:8px;font-family:Barlow,sans-serif;font-size:13px;width:100%;">${pOpts}</select>
+        <select id="editRuleP2-${r.id}" style="background:rgba(0,0,0,0.35);border:1px solid var(--amber);color:var(--text-main);padding:7px 10px;border-radius:8px;font-family:Barlow,sans-serif;font-size:13px;width:100%;">${pOpts2}</select>
+        <div style="display:flex;gap:8px;">
+          <button onclick="saveRuleEdit('${r.id}')" style="flex:2;padding:8px;border:none;border-radius:8px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;cursor:pointer;">&#10003; Save</button>
+          <button onclick="cancelRuleEdit()" style="flex:1;padding:8px;border:1px solid var(--card-border);border-radius:8px;background:none;color:var(--text-muted);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;cursor:pointer;">Cancel</button>
+        </div>
+      </div>`;
+    }
+    return `<div class="rule-row">
+      <span class="rule-badge ${r.type}">${r.type==="together"?"Together":"Apart"}</span>
+      <span class="rule-text">${r.label}</span>
+      <button onclick="startRuleEdit('${r.id}')" style="background:none;border:1px solid rgba(245,158,11,0.3);color:var(--amber);width:26px;height:26px;border-radius:6px;cursor:pointer;font-size:12px;flex-shrink:0;">&#9998;</button>
+      <button class="rule-del" onclick="deleteRule('${r.id}')">&#10005;</button>
+    </div>`;
+  }).join('');
+}
+
+function startRuleEdit(id) { editingRuleId=id; renderRulesList(); }
+function cancelRuleEdit() { editingRuleId=null; renderRulesList(); }
+
+function saveRuleEdit(id) {
+  const rule=(state.playerRules||[]).find(r=>r.id===id);
+  if(!rule) return;
+  const type=document.getElementById(`editRuleType-${id}`).value;
+  const p1Id=document.getElementById(`editRuleP1-${id}`).value;
+  const p2Id=document.getElementById(`editRuleP2-${id}`).value;
+  if(!p1Id||!p2Id){ alert('Select two players.'); return; }
+  if(p1Id===p2Id){ alert('A rule must apply to two different players.'); return; }
+  // Block duplicate pair (excluding the rule being edited)
+  const pairExists=(state.playerRules||[]).some(r=>r.id!==id&&(
+    (r.playerIds[0]===p1Id&&r.playerIds[1]===p2Id)||
+    (r.playerIds[0]===p2Id&&r.playerIds[1]===p1Id)
+  ));
+  if(pairExists){ alert('A rule for these two players already exists.'); return; }
+  rule.type=type;
+  rule.playerIds=[p1Id,p2Id];
+  rule.label=type==='apart'
+    ? `${pNameFromLive(p1Id)} & ${pNameFromLive(p2Id)} never off together`
+    : `${pNameFromLive(p1Id)} & ${pNameFromLive(p2Id)} always rotate together`;
+  editingRuleId=null;
+  saveData();
+  renderRulesList();
+}
+
+function populateRulePlayerSelects() {
+  const liveNames = [];
+  document.querySelectorAll('.player-input').forEach(el => {
+    const idx=parseInt(el.dataset.idx);
+    const name=el.value.trim();
+    if(name&&state.players[idx]) liveNames.push({id:state.players[idx].id,name});
+  });
+  const players = liveNames.length ? liveNames : state.players.filter(p=>p.name);
+  if(!players.length) return;
+
+  const a=document.getElementById('rulePlayerA');
+  const b=document.getElementById('rulePlayerB');
+  if(!a||!b) return;
+
+  function rebuildOpts(excludeId) {
+    return players.map(p=>
+      `<option value="${p.id}" ${p.id===excludeId?'disabled style="color:#555"':''}>${p.name}</option>`
+    ).join('');
+  }
+
+  // Set initial options — A defaults to first player, B defaults to second
+  a.innerHTML = rebuildOpts(null);
+  a.selectedIndex = 0;
+  b.innerHTML = rebuildOpts(players[0]?.id);
+  b.selectedIndex = players.length > 1 ? 1 : 0;
+
+  // When A changes, disable that player in B and re-select B if needed
+  a.onchange = () => {
+    const aVal = a.value;
+    const bVal = b.value;
+    b.innerHTML = rebuildOpts(aVal);
+    // If B had the same player selected, move to first non-A
+    if(bVal === aVal) {
+      const firstAvail = players.find(p=>p.id!==aVal);
+      if(firstAvail) b.value = firstAvail.id;
+    } else {
+      b.value = bVal;
+    }
+  };
+
+  // When B changes, disable that player in A and re-select A if needed
+  b.onchange = () => {
+    const bVal = b.value;
+    const aVal = a.value;
+    a.innerHTML = rebuildOpts(bVal);
+    if(aVal === bVal) {
+      const firstAvail = players.find(p=>p.id!==bVal);
+      if(firstAvail) a.value = firstAvail.id;
+    } else {
+      a.value = aVal;
+    }
+  };
+}
+
+function addPlayerRule() {
+  const type=document.getElementById('ruleTypeSelect').value;
+  const aId=document.getElementById('rulePlayerA').value;
+  const bId=document.getElementById('rulePlayerB').value;
+  if(!aId||!bId){ alert('Select two players.'); return; }
+  if(aId===bId){ alert('A rule must apply to two different players.'); return; }
+  if(!state.playerRules) state.playerRules=[];
+  // Block duplicate pair
+  const pairExists = state.playerRules.some(r=>
+    (r.playerIds[0]===aId&&r.playerIds[1]===bId) ||
+    (r.playerIds[0]===bId&&r.playerIds[1]===aId)
+  );
+  if(pairExists){ alert('A rule for these two players already exists.'); return; }
+  const label=type==='apart'
+    ? `${pNameFromLive(aId)} & ${pNameFromLive(bId)} never off together`
+    : `${pNameFromLive(aId)} & ${pNameFromLive(bId)} always rotate together`;
+  state.playerRules.push({id:uid(),type,playerIds:[aId,bId],label});
+  saveData();
+  renderRulesList();
+  // Reset B back to excluding A
+  populateRulePlayerSelects();
+}
+
+function deleteRule(id) {
+  state.playerRules=(state.playerRules||[]).filter(r=>r.id!==id);
+  if(editingRuleId===id) editingRuleId=null;
+  saveData();
+  renderRulesList();
+}
+
+// Apply rules to a proposed swap: adjust offIds/onIds to respect rules
+function applyRulesToSwap(half, proposedOff, proposedOn, currentOn, currentOff) {
+  const rules = state.playerRules||[];
+  let finalOff=[...proposedOff], finalOn=[...proposedOn];
+
+  rules.forEach(rule=>{
+    const [p1,p2]=rule.playerIds;
+    if(rule.type==='apart') {
+      // Never off at the same time — if both in finalOff, keep one on
+      if(finalOff.includes(p1)&&finalOff.includes(p2)) {
+        // Remove p2 from off, find a replacement from on-field not in off
+        finalOff=finalOff.filter(id=>id!==p2);
+        const replacement=currentOn.find(id=>!finalOff.includes(id)&&!finalOn.includes(id)&&id!==p1&&id!==p2);
+        if(replacement) finalOff.push(replacement);
+      }
+    } else if(rule.type==='together') {
+      // Always rotate together — if p1 is going off, p2 must too
+      if(finalOff.includes(p1)&&!finalOff.includes(p2)&&currentOn.includes(p2)) {
+        finalOff.push(p2);
+        const replacement=finalOn.length>finalOff.length?null:currentOff.find(id=>!finalOn.includes(id));
+        if(replacement) finalOn.push(replacement);
+      }
+      if(finalOff.includes(p2)&&!finalOff.includes(p1)&&currentOn.includes(p1)) {
+        finalOff.push(p1);
+        const replacement=finalOn.length>finalOff.length?null:currentOff.find(id=>!finalOn.includes(id));
+        if(replacement) finalOn.push(replacement);
+      }
+    }
+  });
+  return {finalOff, finalOn};
+}
+
+// ══════════════════════════════════════════════════════
+// CHIME — repeating until rotation confirmed
+// ══════════════════════════════════════════════════════
+function startChime() {
+  if(chimeInterval) return;
+  chimeInterval = setInterval(()=>{
+    const half = state.phase.startsWith('half1') ? 1 : 2;
+    const elapsedSecs = state.duration*60-(half===1?state.half1Remaining:state.half2Remaining);
+    const hasDue = state.rotation.some(r=>r.half===half&&!r.isGkSwap&&!r.done&&r.secMark<=elapsedSecs);
+    if(hasDue) {
+      buzz(BUZZ_ROTATION);
+      soundChimeRepeat();
+    } else {
+      stopChime();
+    }
+  }, 3000);
+}
+
+function stopChime() {
+  if(chimeInterval){ clearInterval(chimeInterval); chimeInterval=null; }
+}
+
+// ══════════════════════════════════════════════════════
+// GK HALF 2 PRIORITY — H1 GK was on whole H1, so in H2
+// they should come off more to equalise field time
+// ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
+// GK HISTORY
+// ══════════════════════════════════════════════════════
+function autoSaveGkHistory() {
+  if (!state.gkHistory) state.gkHistory = [];
+
+  const goals = state.goals || [];
+  const ourGoals   = goals.filter(g=>!g.isOpponent).length;
+  const theirGoals = goals.filter(g=>g.isOpponent).length;
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-AU', {day:'numeric',month:'short',year:'numeric'});
+
+  const entry = {
+    id: uid(),
+    dateMs: now.getTime(),
+    date: dateStr,
+    opponent: state.opponent || '',
+    gk1Name: state.gk1Id ? pName(state.gk1Id) : '—',
+    gk2Name: state.gk2Id ? pName(state.gk2Id) : '—',
+    ourGoals,
+    theirGoals,
+    reportText: buildMatchReportText(), // full report for email
+    emailPending: null, // email address for inline send
+  };
+  state.gkHistory.unshift(entry);
+}
+
+function renderGkHistory() {
+  const el = document.getElementById('gkHistoryContent');
+  if (!el) return;
+  const history = (state.gkHistory || []).slice().sort((a,b)=>b.dateMs-a.dateMs);
+
+  if (!history.length) {
+    el.innerHTML = '<div class="gkh-empty">No matches recorded yet.<br>Games are saved automatically at full time.</div>';
+    return;
+  }
+
+  let html = '';
+  history.forEach((entry) => {
+    const isEditing = el.dataset.editing === entry.id;
+    const isEmailing = el.dataset.emailing === entry.id;
+    const result = entry.ourGoals > entry.theirGoals ? 'WIN' : entry.ourGoals < entry.theirGoals ? 'LOSS' : 'DRAW';
+    const resultColor = entry.ourGoals > entry.theirGoals ? '#4ade80' : entry.ourGoals < entry.theirGoals ? '#f87171' : 'var(--amber)';
+
+    html += `<div class="gk-history-entry${isEditing?' editing':''}" id="gkhe-${entry.id}">
+      <div class="gkh-header">
+        <div>
+          <div class="gkh-date">📅 ${esc(entry.date)}${entry.opponent?' <span style="color:var(--text-muted);font-size:12px;">vs '+esc(entry.opponent)+'</span>':''}</div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="gkh-edit-btn" onclick="toggleGkHistoryEdit('${entry.id}')" title="Edit">✎</button>
+        </div>
+      </div>
+
+      <!-- Score -->
+      <div style="display:flex;align-items:center;gap:12px;margin:8px 0 10px;padding:10px 12px;background:rgba(0,0,0,0.2);border-radius:10px;">
+        <div style="flex:1;text-align:center;">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:36px;color:#4ade80;line-height:1;">${entry.ourGoals}</div>
+          <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Us</div>
+        </div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:18px;color:${resultColor};">${result}</div>
+        <div style="flex:1;text-align:center;">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:36px;color:#f87171;line-height:1;">${entry.theirGoals}</div>
+          <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">${entry.opponent?esc(entry.opponent):'Them'}</div>
+        </div>
+      </div>
+
+      <!-- GKs -->
+      <div class="gkh-halves">
+        <div class="gkh-half">
+          <div class="gkh-half-label">🧤 1st Half GK</div>
+          <div class="gkh-half-name">${isEditing
+            ? `<input type="text" id="gkh1inp-${entry.id}" value="${esc(entry.gk1Name)}" placeholder="GK name">`
+            : esc(entry.gk1Name||'—')}</div>
+        </div>
+        <div class="gkh-half">
+          <div class="gkh-half-label">🧤 2nd Half GK</div>
+          <div class="gkh-half-name">${isEditing
+            ? `<input type="text" id="gkh2inp-${entry.id}" value="${esc(entry.gk2Name)}" placeholder="GK name">`
+            : esc(entry.gk2Name||'—')}</div>
+        </div>
+      </div>
+
+      ${isEditing ? `
+        <input type="text" id="gkhoppinp-${entry.id}" value="${esc(entry.opponent||'')}"
+          placeholder="Opponent name (optional)"
+          style="margin-top:8px;width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--amber);color:var(--text-main);padding:6px 10px;border-radius:6px;font-family:'Barlow',sans-serif;font-size:13px;">
+        <input type="text" id="gkhdateinp-${entry.id}" value="${esc(entry.date)}"
+          placeholder="Date"
+          style="margin-top:6px;width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--amber);color:var(--text-main);padding:6px 10px;border-radius:6px;font-family:'Barlow',sans-serif;font-size:13px;">
+        <button class="gkh-save-btn" onclick="saveGkHistoryEdit('${entry.id}')">✓ Save Changes</button>
+        <button class="gkh-delete-btn" onclick="deleteGkHistoryEntry('${entry.id}')">🗑 Delete This Entry</button>
+      ` : ''}
+
+      <!-- Email section -->
+      ${isEmailing ? `
+        <div style="margin-top:10px;display:flex;gap:8px;">
+          <input type="email" id="gkhemail-${entry.id}" placeholder="recipient@example.com"
+            style="flex:1;background:rgba(0,0,0,0.35);border:1px solid var(--card-border);color:var(--text-main);padding:8px 10px;border-radius:8px;font-family:'Barlow',sans-serif;font-size:14px;">
+          <button onclick="sendGameEmail('${entry.id}')"
+            style="background:linear-gradient(135deg,#3b82f6,#2563eb);border:none;border-radius:8px;color:#fff;padding:8px 12px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;cursor:pointer;">📧 Send</button>
+          <button onclick="cancelGameEmail()"
+            style="background:none;border:1px solid var(--card-border);border-radius:8px;color:var(--text-muted);padding:8px 10px;font-family:'Barlow Condensed',sans-serif;font-size:13px;cursor:pointer;">✕</button>
+        </div>
+      ` : !isEditing ? `
+        <button onclick="openGameEmail('${entry.id}')"
+          style="margin-top:10px;width:100%;padding:8px;border:1px solid rgba(59,130,246,0.4);background:rgba(59,130,246,0.1);color:#93c5fd;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;cursor:pointer;">
+          📧 Email Match Report
+        </button>
+      ` : ''}
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
+function openGameEmail(id) {
+  const el = document.getElementById('gkHistoryContent');
+  if(el) { el.dataset.emailing = id; el.dataset.editing = ''; }
+  renderGkHistory();
+}
+
+function cancelGameEmail() {
+  const el = document.getElementById('gkHistoryContent');
+  if(el) el.dataset.emailing = '';
+  renderGkHistory();
+}
+
+function sendGameEmail(id) {
+  const entry = (state.gkHistory||[]).find(e=>e.id===id);
+  if(!entry) return;
+  const input = document.getElementById('gkhemail-'+id);
+  const to = input ? input.value.trim() : '';
+  const opponent = entry.opponent ? ` vs ${entry.opponent}` : '';
+  const subject = encodeURIComponent(`Match Report — Vicki the Manager — ${entry.date}${opponent}`);
+  const body = encodeURIComponent(entry.reportText || `Match on ${entry.date}\nUs ${entry.ourGoals} — ${entry.theirGoals} ${entry.opponent||'Them'}\n1st Half GK: ${entry.gk1Name}\n2nd Half GK: ${entry.gk2Name}`);
+  const a = document.createElement('a');
+  a.href = `mailto:${to}?subject=${subject}&body=${body}`;
+  a.click();
+}
+
+function toggleGkHistoryEdit(id) {
+  const el = document.getElementById('gkHistoryContent');
+  if (!el) return;
+  el.dataset.editing = el.dataset.editing === id ? '' : id;
+  el.dataset.emailing = '';
+  renderGkHistory();
+}
+
+function saveGkHistoryEdit(id) {
+  const entry = (state.gkHistory||[]).find(e=>e.id===id);
+  if (!entry) return;
+  const g1  = document.getElementById('gkh1inp-'+id);
+  const g2  = document.getElementById('gkh2inp-'+id);
+  const dt  = document.getElementById('gkhdateinp-'+id);
+  const opp = document.getElementById('gkhoppinp-'+id);
+  if (g1)  entry.gk1Name  = g1.value.trim();
+  if (g2)  entry.gk2Name  = g2.value.trim();
+  if (dt)  entry.date     = dt.value.trim();
+  if (opp) entry.opponent = opp.value.trim();
+  saveData();
+  const el = document.getElementById('gkHistoryContent');
+  if (el) el.dataset.editing = '';
+  renderGkHistory();
+}
+
+function deleteGkHistoryEntry(id) {
+  if (!confirm('Delete this GK history entry?')) return;
+  state.gkHistory = (state.gkHistory||[]).filter(e=>e.id!==id);
+  saveData();
+  renderGkHistory();
+}
+
+// ══════════════════════════════════════════════════════
+// MATCH SUMMARY REPORT
+// ══════════════════════════════════════════════════════
+function buildMatchSummaryHTML() {
+  const goals  = state.goals || [];
+  const ourGoals   = goals.filter(g=>!g.isOpponent).length;
+  const theirGoals = goals.filter(g=>g.isOpponent).length;
+  const result = ourGoals > theirGoals ? '⚽ WIN' : ourGoals < theirGoals ? '😤 LOSS' : '🤝 DRAW';
+  const resultColor = ourGoals > theirGoals ? '#4ade80' : ourGoals < theirGoals ? '#f87171' : var_amber();
+  const dateStr = new Date().toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const totalSecs = state.duration * 2 * 60;
+
+  // Goals list
+  const sortedGoals = [...goals].sort((a,b)=>a.elapsedSecs-b.elapsedSecs);
+  const goalRows = sortedGoals.length
+    ? sortedGoals.map(g=>`<div class="report-row">
+        <span class="rk">${g.isOpponent?'🔴':'⚽'} ${Math.floor(g.elapsedSecs/60)}'</span>
+        <span class="rv">${esc(g.scorerName||'—')}${g.detail?' · '+esc(g.detail):''}</span>
+      </div>`).join('')
+    : '<div class="report-row"><span class="rk">No goals recorded</span></div>';
+
+  // Top field time players
+  const gkIds = [state.gk1Id,state.gk2Id].filter(Boolean);
+  const fieldPlayers = state.players
+    .filter(p=>p.name)
+    .map(p=>({...p, secs: state.fieldTime[p.id]||0}))
+    .sort((a,b)=>b.secs-a.secs);
+  const timeRows = fieldPlayers.map(p=>{
+    const pct = Math.min(100,(p.secs/Math.max(1,totalSecs))*100).toFixed(0);
+    const isGk = gkIds.includes(p.id);
+    return `<div class="report-row">
+      <span class="rk">${isGk?'🧤 ':''}${esc(p.name)}</span>
+      <span class="rv">${fmtTime(p.secs)} <span style="color:var(--text-muted);font-weight:400">(${pct}%)</span></span>
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="summary-report">
+    <div class="summary-report-title">Match Report</div>
+    <div class="summary-report-date">${dateStr}</div>
+
+    <div class="summary-score-big">
+      <div>
+        <div class="score-num" style="color:#4ade80">${ourGoals}</div>
+        <div class="summary-score-big score-team-label">Us</div>
+      </div>
+      <div class="score-sep">—</div>
+      <div>
+        <div class="score-num" style="color:#f87171">${theirGoals}</div>
+        <div class="summary-score-big score-team-label">Them</div>
+      </div>
+    </div>
+    <div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:20px;letter-spacing:2px;margin-bottom:18px;color:${resultColor}">${result}</div>
+
+    <div class="report-section">
+      <div class="report-section-label">Match Info</div>
+      <div class="report-row"><span class="rk">Duration</span><span class="rv">${state.duration} min per half</span></div>
+      <div class="report-row"><span class="rk">Squad size</span><span class="rv">${state.players.filter(p=>p.name).length} players</span></div>
+      <div class="report-row"><span class="rk">Format</span><span class="rv">${state.teamSize}-a-side</span></div>
+      <div class="report-row"><span class="rk">1st Half GK</span><span class="rv">${pName(state.gk1Id)}</span></div>
+      <div class="report-row"><span class="rk">2nd Half GK</span><span class="rv">${pName(state.gk2Id)}</span></div>
+      ${state.half1KickoffStr?`<div class="report-row"><span class="rk">Kicked off</span><span class="rv">${state.half1KickoffStr}</span></div>`:''}
+    </div>
+
+    <div class="report-section">
+      <div class="report-section-label">Goals</div>
+      ${goalRows}
+    </div>
+
+    <div class="report-section">
+      <div class="report-section-label">Player Field Time</div>
+      ${timeRows}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Email Report</div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;line-height:1.5;">Opens your mail app with the report pre-filled. Tap Send to deliver it.</p>
+    <input type="email" id="reportEmailInput" class="email-input" placeholder="recipient@example.com">
+    <div class="email-row">
+      <button class="email-send-btn" onclick="sendMatchEmail()" style="width:100%;">📧 Open in Mail App</button>
+    </div>
+    <div id="emailFeedback"></div>
+  </div>`;
+}
+
+function var_amber() { return '#f59e0b'; }
+
+function buildMatchReportText() {
+  const goals = state.goals || [];
+  const ourGoals   = goals.filter(g=>!g.isOpponent).length;
+  const theirGoals = goals.filter(g=>g.isOpponent).length;
+  const result = ourGoals > theirGoals ? 'WIN' : ourGoals < theirGoals ? 'LOSS' : 'DRAW';
+  const dateStr = new Date().toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const totalSecs = state.duration * 2 * 60;
+  const gkIds = [state.gk1Id,state.gk2Id].filter(Boolean);
+
+  let lines = [];
+  lines.push('MATCH REPORT — VICKI THE MANAGER');
+  lines.push('='.repeat(40));
+  lines.push(dateStr);
+  lines.push('');
+  lines.push(`RESULT: ${result}`);
+  lines.push(`SCORE:  Us ${ourGoals} — ${theirGoals} Them`);
+  lines.push('');
+  lines.push('MATCH INFO');
+  lines.push('-'.repeat(30));
+  lines.push(`Format:       ${state.teamSize}-a-side`);
+  lines.push(`Half duration: ${state.duration} min`);
+  lines.push(`Squad size:    ${state.players.filter(p=>p.name).length} players`);
+  if(state.opponent) lines.push(`Opponent:     ${state.opponent}`);
+  lines.push(`1st Half GK:  ${pName(state.gk1Id)}`);
+  lines.push(`2nd Half GK:  ${pName(state.gk2Id)}`);
+  if(state.half1KickoffStr) lines.push(`Kicked off:   ${state.half1KickoffStr}`);
+  lines.push('');
+
+  if(goals.length) {
+    lines.push('GOALS');
+    lines.push('-'.repeat(30));
+    [...goals].sort((a,b)=>a.elapsedSecs-b.elapsedSecs).forEach(g=>{
+      const min = Math.floor(g.elapsedSecs/60);
+      const side = g.isOpponent ? 'THEM' : 'US  ';
+      const scorer = g.scorerName || '—';
+      const detail = g.detail ? ` (${g.detail})` : '';
+      lines.push(`${String(min).padStart(3)}'  ${side}  ${scorer}${detail}`);
+    });
+    lines.push('');
+  }
+
+  lines.push('PLAYER FIELD TIME');
+  lines.push('-'.repeat(30));
+  state.players
+    .filter(p=>p.name)
+    .map(p=>({...p, secs:state.fieldTime[p.id]||0}))
+    .sort((a,b)=>b.secs-a.secs)
+    .forEach(p=>{
+      const isGk = gkIds.includes(p.id);
+      const pct = Math.min(100,(p.secs/Math.max(1,totalSecs))*100).toFixed(0);
+      const gkTag = isGk ? ' [GK]' : '';
+      lines.push(`${(p.name+gkTag).padEnd(20)} ${fmtTime(p.secs)}  (${pct}%)`);
+    });
+  lines.push('');
+  lines.push('='.repeat(40));
+  lines.push('Sent from Vicki the Manager v1.02');
+
+  return lines.join('\n');
+}
+
+function sendMatchEmail() {
+  const input = document.getElementById('reportEmailInput');
+  const to = input ? input.value.trim() : '';
+
+  const dateStr = new Date().toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
+  const subject = encodeURIComponent(`Match Report — Vicki the Manager — ${dateStr}`);
+  const body = encodeURIComponent(buildMatchReportText());
+  const mailto = `mailto:${to}?subject=${subject}&body=${body}`;
+
+  // Attempt to open mail client
+  const a = document.createElement('a');
+  a.href = mailto;
+  a.click();
+
+  // Detect if mail app opened — if page stays visible after 1.5s, mail client likely didn't launch
+  const before = Date.now();
+  const feedbackEl = document.getElementById('emailFeedback');
+  if(feedbackEl) feedbackEl.innerHTML = '<div style="margin-top:10px;font-size:13px;color:var(--text-muted);">Opening mail app…</div>';
+
+  setTimeout(() => {
+    // If page is still visible (not backgrounded by mail app), show fallback
+    if(document.visibilityState === 'visible') {
+      showEmailFallback(mailto, to, buildMatchReportText());
+    } else {
+      // Mail app opened — clear the feedback
+      if(feedbackEl) feedbackEl.innerHTML = '';
+    }
+  }, 1500);
+}
+
+function showEmailFallback(mailto, to, reportText) {
+  const feedbackEl = document.getElementById('emailFeedback');
+  if(!feedbackEl) return;
+  feedbackEl.innerHTML = `
+    <div style="margin-top:12px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:12px;">
+      <div style="font-size:13px;color:var(--amber-light);font-weight:600;margin-bottom:8px;">⚠️ Mail app didn't open</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.5;">Your device may not have a default email app configured. You can try again, copy the report and paste it manually, or open your mail app and paste in the report.</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <button onclick="sendMatchEmail()" style="padding:9px;border:none;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;cursor:pointer;">↩ Try Again</button>
+        <button onclick="copyReportToClipboard()" style="padding:9px;border:1px solid var(--card-border);border-radius:8px;background:rgba(0,0,0,0.2);color:var(--text-main);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;cursor:pointer;">📋 Copy Report to Clipboard</button>
+      </div>
+    </div>`;
+}
+
+function copyReportToClipboard() {
+  const text = buildMatchReportText();
+  if(navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      const feedbackEl = document.getElementById('emailFeedback');
+      if(feedbackEl) feedbackEl.innerHTML = `
+        <div style="margin-top:10px;background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);border-radius:10px;padding:10px 12px;font-size:13px;color:#86efac;">
+          ✅ Report copied to clipboard — paste it into your email app
+        </div>`;
+    }).catch(() => {
+      fallbackCopyText(text);
+    });
+  } else {
+    fallbackCopyText(text);
+  }
+}
+
+function fallbackCopyText(text) {
+  // Use a hidden textarea for older browsers
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  let success = false;
+  try { success = document.execCommand('copy'); } catch(e) {}
+  document.body.removeChild(ta);
+  const feedbackEl = document.getElementById('emailFeedback');
+  if(feedbackEl) feedbackEl.innerHTML = success
+    ? `<div style="margin-top:10px;background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);border-radius:10px;padding:10px 12px;font-size:13px;color:#86efac;">✅ Report copied — paste it into your email app</div>`
+    : `<div style="margin-top:10px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:10px;padding:10px 12px;font-size:13px;color:#fca5a5;">❌ Could not copy automatically — please take a screenshot of the report</div>`;
+}
+
+// ══════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════
+// loadData is async — all startup rendering goes inside the callback
+loadData(() => {
+  renderSquadTab();
+  populateOpponentField();
+  render();
+});
+
+// Delegated event handler — belt-and-suspenders fallback for dynamically rendered buttons
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('[data-action]');
+  if(!btn) return;
+  const action = btn.dataset.action;
+  if(action === 'kickoff') startHalf();
+  else if(action === 'start2nd') startSecondHalf();
+  else if(action === 'pausetimer') pauseTimer();
+  else if(action === 'resumetimer') resumeTimer();
+  else if(action === 'confirmrotation') {
+    const half = parseInt(btn.dataset.half);
+    const idx  = parseInt(btn.dataset.idx);
+    confirmRotation(half, idx);
+  }
+});
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => console.log('SW registered:', reg.scope))
+      .catch(err => console.log('SW registration failed:', err));
+  });
+}
+</script>
+</body>
+</html>
