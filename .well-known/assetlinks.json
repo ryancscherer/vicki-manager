@@ -1,12 +1,10 @@
-[
-  {
-    "relation": ["delegate_permission/common.handle_all_urls"],
-    "target": {
-      "namespace": "android_app",
-      "package_name": "com.ryanscherer.vickimanager",
-      "sha256_cert_fingerprints": [
-        "REPLACE_WITH_YOUR_SHA256_FINGERPRINT_AFTER_BUBBLEWRAP_BUILD"
-      ]
-    }
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.ryanscherer.vickimanager",
+    "sha256_cert_fingerprints": [
+      "53:F0:06:9E:0D:C3:DA:FD:23:7E:55:5C:9C:10:53:BE:5D:4F:30:C2:15:D4:3F:B1:02:83:B8:D8:1D:AF:49:C4"
+    ]
   }
-]
+}]
